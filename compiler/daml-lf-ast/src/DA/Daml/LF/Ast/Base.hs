@@ -789,7 +789,7 @@ instance NM.Named Module where
   type Name Module = ModuleName
   name = moduleName
 
-concatSequenceA $
+concatSequenceA
   [ makePrisms ''Kind
   , makePrisms ''Type
   , makePrisms ''Expr
