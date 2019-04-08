@@ -83,8 +83,7 @@ class ScalaCodeGenIT
   private val ledgerId = this.getClass.getSimpleName
 
   private val archives = List(
-    requiredResource("language-support/scala/codegen-sample-app/MyMain.dalf"),
-    requiredResource("daml-foundations/daml-ghc/package-database/deprecated/daml-prim-1.3.dalf")
+    requiredResource("language-support/scala/codegen-sample-app/MyMain.dar"),
   )
 
   private val asys = ActorSystem()
