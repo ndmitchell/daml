@@ -3,7 +3,8 @@
 
 package com.digitalasset.platform.semantictest
 
-import java.io.{BufferedInputStream, InputStream}
+import java.io.{BufferedInputStream, File, InputStream}
+import java.nio.file.{Files, StandardCopyOption, Paths}
 
 import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
@@ -32,13 +33,19 @@ object LedgerApiTestTool {
       "/ledger/ledger-api-integration-tests/SemanticTests.dalf")
 
     // a blacklist of tests that are currently failing
-    val knownFailures = Set(
-      "Test:test_divulgence_of_token" // FIXME https://github.com/DACH-NY/daml/issues/1323
+    val knownFailures: Set[String] = Set(
+      // daml-on-x reference server should pass this test.
+      // "Test:test_divulgence_of_token" // FIXME https://github.com/DACH-NY/daml/issues/1323
     )
 
     val config = argParser
       .parse(args, defaultConfig)
       .getOrElse(sys.exit(1))
+
+    if (config.extract) {
+      extractTestFiles(testResources)
+      System.exit(1)
+    }
 
     val packages: Map[PackageId, Ast.Package] = testResources
       .map { n =>
@@ -63,7 +70,6 @@ object LedgerApiTestTool {
     if (config.performReset) {
       Await.result(ledger.reset(), 10.seconds)
     }
-
     var failed = false
 
     try {
@@ -117,19 +123,34 @@ object LedgerApiTestTool {
     }
   }
 
+  private def extractTestFiles(testResources: List[String]): Unit = {
+    val pwd = Paths.get(".").toAbsolutePath()
+    println(s"Extracting all DAML resources necessary to run the tests into $pwd.")
+    testResources
+      .foreach { n =>
+        val is = getClass.getResourceAsStream(n)
+        if (is == null) sys.error(s"Could not find $n in classpath")
+        val targetFile = new File(new File(n).getName)
+        Files.copy(is, targetFile.toPath, StandardCopyOption.REPLACE_EXISTING);
+        println(s"Extracted $n to $targetFile")
+      }
+  }
+
   final case class Config(
       host: String,
       port: Int,
       packageContainer: DamlPackageContainer,
       performReset: Boolean,
-      mustFail: Boolean)
+      mustFail: Boolean,
+      extract: Boolean)
 
   private val defaultConfig = Config(
     host = "localhost",
     port = 6865,
     packageContainer = DamlPackageContainer(),
     performReset = false,
-    mustFail = false
+    mustFail = false,
+    extract = false
   )
 
   private val argParser = new scopt.OptionParser[Config]("ledger-api-test-tool") {
@@ -150,6 +171,11 @@ object LedgerApiTestTool {
     opt[Unit]('r', "reset")
       .action((_, c) => c.copy(performReset = true))
       .text("Perform a ledger reset before running the tests. Defaults to false.")
+
+    opt[Unit]('x',"extract")
+      .action((_, c) => c.copy(extract = true))
+      .text("Extract the testing archive files and exit.")
+
   }
 
 }
