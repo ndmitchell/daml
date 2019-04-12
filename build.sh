@@ -13,7 +13,7 @@ export LC_ALL=en_US.UTF-8
 
 EXEC_LOG_DIR="${BUILD_ARTIFACTSTAGINGDIRECTORY:-$PWD}"
 
-<(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)
+bash <(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)
 
 # Bazel test only builds targets that are dependencies of a test suite
 # so do a full build first.
