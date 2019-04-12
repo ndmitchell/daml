@@ -45,7 +45,10 @@ steps:
 
   - bash: |
      ./dev-env/bin/dade-assist 
-     bash <(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)
+     java -version
+     bash |
+      java -version
+      <(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)
     displayName: 'Blackduck CoPilot'
 
   - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true  --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
