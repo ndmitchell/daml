@@ -37,7 +37,6 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
-steps:
  - task: black-duck-software.detect-for-tfs.hub.detect.task.BlackDuckDetect@1
    displayName: 'Run Black Duck Detect for your build '
    inputs:
