@@ -37,7 +37,9 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
-  - bash: <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=INFO --blackduck.url=https://digitalasset.blackducksoftware.com
+  - bash: bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+
+  - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Blackduck Scan'
     env:
       BLACKDUCK_HUB_CREDENTIALS: $(BLACKDUCK_HUB_DETECT)
