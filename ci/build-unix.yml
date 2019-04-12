@@ -37,15 +37,15 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
-  - task: black-duck-software.detect-for-tfs.hub.detect.task.BlackDuckDetect@1
-    displayName: 'Run Black Duck Detect for your build '
-    inputs:
-      BlackDuckHubService: blackduck
-      DetectArguments: '--detect. blah'
-      DetectFolder: 'some detect folder'
+#  - task: black-duck-software.detect-for-tfs.hub.detect.task.BlackDuckDetect@1
+#    displayName: 'Run Black Duck Detect for your build '
+#    inputs:
+#      BlackDuckHubService: blackduck
+#      DetectArguments: '--detect. blah'
+#      DetectFolder: 'some detect folder'
 
 
-  - bash: bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+  - bash: bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) ci-build project=daml branch=blackduck --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
 
   - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Blackduck Scan'
