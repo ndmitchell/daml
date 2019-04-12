@@ -17,9 +17,9 @@ steps:
       GOOGLE_APPLICATION_CREDENTIALS_CONTENT: $(GOOGLE_APPLICATION_CREDENTIALS_CONTENT)
       NIX_SECRET_KEY_CONTENT: $(NIX_SECRET_KEY_CONTENT)
 
-  - bash: ./fmt.sh --test
-    displayName: 'Platform-agnostic lints and checks'
-    condition: eq(variables['Agent.OS'], 'Linux')
+#  - bash: ./fmt.sh --test
+#    displayName: 'Platform-agnostic lints and checks'
+#    condition: eq(variables['Agent.OS'], 'Linux')
 
   - bash: ci/configure-bazel.sh
     displayName: 'Configure Bazel'
@@ -45,12 +45,12 @@ steps:
 #      DetectFolder: 'some detect folder'
 
 
-  - bash: bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) ci-build project=daml branch=blackduck --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+  - bash: bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
 
-  - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true --blackduck.api.token=$(BLACKDUCK_HUB_DETECT) --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+  - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true  --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Blackduck Scan'
     env:
-      BLACKDUCK_HUB_CREDENTIALS: $(BLACKDUCK_HUB_DETECT)
+      BLACKDUCK_HUBDETECT_TOKEN: $(BLACKDUCK_HUB_DETECT)
 
   - bash: ci/release.sh
     displayName: 'Release'
