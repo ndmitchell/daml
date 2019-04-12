@@ -37,7 +37,7 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
-  - bash: curl -o synopsys-detect.sh https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D; ./synopsys-detect.sh ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+  - bash: curl -o $(Build.BinariesDirectory)/synopsys-detect.sh https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D; $(Build.BinariesDirectory)/synopsys-detect.sh ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Synopsys Detect Scan'
     env:
       BLACKDUCK_HUBDETECT_TOKEN: $(BLACKDUCK_HUB_DETECT)
