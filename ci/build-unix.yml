@@ -37,11 +37,11 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
-  - bash: curl -o $(Build.BinariesDirectory)/synopsys-detect.sh https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D; $(Build.BinariesDirectory)/synopsys-detect.sh ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
-    displayName: 'Synopsys Detect Scan'
-    env:
-      BLACKDUCK_HUBDETECT_TOKEN: $(BLACKDUCK_HUB_DETECT)
-      DETECT_JAR_PATH: $(Build.BinariesDirectory)
+#  - bash: curl -o $(Build.BinariesDirectory)/synopsys-detect.sh https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D; $(Build.BinariesDirectory)/synopsys-detect.sh ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
+#    displayName: 'Synopsys Detect Scan'
+#    env:
+#      BLACKDUCK_HUBDETECT_TOKEN: $(BLACKDUCK_HUB_DETECT)
+#      DETECT_JAR_PATH: $(Build.BinariesDirectory)
 
   - bash: bash <(curl -s https://blackducksoftware.github.io/hub-detect/hub-detect.sh) --detect.docker.image=alpine:latest --detect.blackduck.signature.scanner.disabled=true --blackduck.blackduck.offline.mode=true --detect.docker.passthrough.imageinspector.service.start=true  --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Blackduck Scan'
