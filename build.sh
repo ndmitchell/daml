@@ -13,10 +13,6 @@ export LC_ALL=en_US.UTF-8
 
 EXEC_LOG_DIR="${BUILD_ARTIFACTSTAGINGDIRECTORY:-$PWD}"
 
-#bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
-
-#bash <(curl -s https://copilot.blackducksoftware.com/ci/azure/scripts/upload)
-
 # Bazel test only builds targets that are dependencies of a test suite
 # so do a full build first.
 (
