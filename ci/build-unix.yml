@@ -42,7 +42,7 @@ steps:
 
   - bash: |
       set -euxo pipefail
-      eval dev-env/bin/dade-assist
+      eval "$(./dev-env/bin/dade-assist)"
       export LC_ALL=en_US.UTF-8
       bash <(curl -s https://raw.githubusercontent.com/DACH-NY/security-blackduck/master/synopsys-detect\?token\=AYAziXvyU6XSZswdUE0nZpr4HfCYgS8qks5cugsvwA%3D%3D) ci-build project=daml branch=blackduck --logging.level.com.blackducksoftware.integration=DEBUG --blackduck.url=https://digitalasset.blackducksoftware.com
     displayName: 'Synopsys Detect Scan'
