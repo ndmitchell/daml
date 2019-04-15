@@ -15,6 +15,9 @@ class DarSpec extends FlatSpec with Matchers with Checkers {
   behavior of s"${Dar.getClass.getSimpleName} Traverse"
   checkLaws(ScalazProperties.traverse.laws[Dar])
 
+  behavior of s"${Dar.getClass.getSimpleName} Functor"
+  checkLaws(ScalazProperties.functor.laws[Dar])
+
   private def checkLaws(props: Properties): Unit =
     props.properties foreach { case (s, p) => it should s in check(p) }
 
