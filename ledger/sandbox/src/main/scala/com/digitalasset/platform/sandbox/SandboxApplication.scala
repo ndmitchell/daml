@@ -9,16 +9,13 @@ import akka.actor.ActorSystem
 import akka.stream.ActorMaterializer
 import akka.stream.scaladsl.{Sink, Source}
 import com.digitalasset.api.util.TimeProvider
-import com.digitalasset.ledger.backend.api.v1.SubmissionResult
 import com.digitalasset.ledger.client.configuration.TlsConfiguration
 import com.digitalasset.ledger.server.LedgerApiServer.LedgerApiServer
-import com.digitalasset.platform.common.util.DirectExecutionContext
 import com.digitalasset.platform.sandbox.banner.Banner
 import com.digitalasset.platform.sandbox.config.{SandboxConfig, SandboxContext}
 import com.digitalasset.platform.sandbox.services.SandboxResetService
 import com.digitalasset.platform.sandbox.stores.ActiveContracts
 import com.digitalasset.platform.sandbox.stores.ledger._
-import com.digitalasset.platform.sandbox.util.RetriableFuture._
 import com.digitalasset.platform.server.services.testing.TimeServiceBackend
 import com.digitalasset.platform.services.time.TimeProviderType
 import io.grpc.netty.GrpcSslContexts
@@ -91,8 +88,13 @@ object SandboxApplication {
         case None => ("in-memory", Ledger.inMemory(ledgerId, timeProvider, acs, records))
         case Some(jdbcUrl) =>
           val ledgerF = Ledger.postgres(jdbcUrl, ledgerId, timeProvider, records)
-          val ledger = Try(Await.result(ledgerF, asyncTolerance))
-            .getOrElse(sys.error("Could not start PostgreSQL persistence layer"))
+
+          val ledger = Try(Await.result(ledgerF, asyncTolerance)).fold(t => {
+            val msg = "Could not start PostgreSQL persistence layer"
+            logger.error(msg, t)
+            sys.error(msg)
+          }, identity)
+
           (s"sql", ledger)
       }
 
@@ -174,9 +176,7 @@ object SandboxApplication {
       else None
     }
 
-  private def scheduleHeartbeats(
-      timeProvider: TimeProvider,
-      onTimeChange: Instant => Future[SubmissionResult])(
+  private def scheduleHeartbeats(timeProvider: TimeProvider, onTimeChange: Instant => Future[Unit])(
       implicit mat: ActorMaterializer,
       ec: ExecutionContext) =
     timeProvider match {
@@ -186,12 +186,7 @@ object SandboxApplication {
         val cancelable = Source
           .tick(0.seconds, interval, ())
           .mapAsync[Unit](1)(
-            _ =>
-              onTimeChange(timeProvider.getCurrentTime)
-                .retryExponentiallyUntil(_ == SubmissionResult.Acknowledged, (dur, runnable) => {
-                  val _ = mat.scheduleOnce(dur, runnable)
-                })
-                .map(_ => ())(DirectExecutionContext)
+            _ => onTimeChange(timeProvider.getCurrentTime)
           )
           .to(Sink.ignore)
           .run()
