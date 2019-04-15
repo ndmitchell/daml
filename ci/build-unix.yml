@@ -38,6 +38,13 @@ steps:
       pathtoPublish: '$(Build.ArtifactStagingDirectory)'
       artifactName: 'Bazel execution logs'
 
+  - task: PublishBuildArtifacts@1
+    condition: succeededOrFailed()
+    inputs:
+      pathtoPublish: 'bazel-testlogs/'
+      artifactName: 'Bazel test logs'
+
+
   - bash: ci/release.sh
     displayName: 'Release'
     condition: eq(variables['System.PullRequest.IsFork'], 'False')
