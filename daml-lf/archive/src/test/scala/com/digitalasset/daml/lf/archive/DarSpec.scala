@@ -28,5 +28,4 @@ class DarSpec extends FlatSpec with Matchers with Checkers {
     } yield Dar[A](main, dependencies)
 
   private implicit def darArb[A: Arbitrary]: Arbitrary[Dar[A]] = Arbitrary(darGen)
-
 }
