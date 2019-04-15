@@ -3,7 +3,7 @@
 
 package com.digitalasset.daml.lf
 
-import scalaz.{Applicative, Functor, Traverse}
+import scalaz.{Applicative, Traverse}
 
 import scala.language.higherKinds
 
@@ -12,18 +12,17 @@ case class Dar[A](main: A, dependencies: List[A]) {
 }
 
 object Dar {
-  implicit val darFunctor: Functor[Dar] = new Functor[Dar] {
+  implicit val darTraverse: Traverse[Dar] = new Traverse[Dar] {
     override def map[A, B](fa: Dar[A])(f: A => B): Dar[B] =
       Dar[B](main = f(fa.main), dependencies = fa.dependencies.map(f))
-  }
 
-  implicit val darTraverse: Traverse[Dar] = new Traverse[Dar] {
     override def traverseImpl[G[_]: Applicative, A, B](fa: Dar[A])(f: A => G[B]): G[Dar[B]] = {
-      val G: Applicative[G] = implicitly
+      import scalaz.syntax.apply._
+      import scalaz.syntax.traverse._
+      import scalaz.std.list._
       val gb: G[B] = f(fa.main)
-      val L: Traverse[List] = scalaz.std.list.listInstance
-      val gbs: G[List[B]] = L.traverse(fa.dependencies)(f)
-      G.apply2(gb, gbs)((b, bs) => Dar(b, bs))
+      val gbs: G[List[B]] = fa.dependencies.traverse(f)
+      ^(gb, gbs)((b, bs) => Dar(b, bs))
     }
   }
 }

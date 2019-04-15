@@ -13,7 +13,7 @@ class DarSpec extends FlatSpec with Matchers with GeneratorDrivenPropertyChecks 
   it should "implement Functor" in forAll(darGen[Int]) { dar =>
     import scalaz.Functor
 
-    val sut: Functor[Dar] = Dar.darFunctor
+    val sut: Functor[Dar] = Dar.darTraverse
 
     def f(a: Int): Int = a + 100
 
