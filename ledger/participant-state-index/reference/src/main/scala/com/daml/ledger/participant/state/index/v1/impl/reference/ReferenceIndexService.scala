@@ -276,9 +276,9 @@ final case class ReferenceIndexService(participantReadService: participant.state
           val toDrop = currentOffset
           currentOffset = txs.lastOption.map(_._1)
           txs
-            .dropWhile{
+            .dropWhile {
               //_ => false
-              case (offset,_) => toDrop.fold(false)(_.eq(offset))
+              case (offset, _) => toDrop.fold(false)(_.eq(offset))
             }
       }
       // Complete the stream once end (if given) has been reached.
