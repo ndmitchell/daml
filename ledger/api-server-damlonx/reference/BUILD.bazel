@@ -9,6 +9,7 @@ load(
 da_scala_binary(
     name = "reference",
     srcs = glob(["src/main/scala/**/*.scala"]),
+    visibility = ["//visibility:public"],
     main_class = "com.daml.ledger.api.server.damlonx.reference.ReferenceServer",
     resources = glob(["src/main/resources/**/*"]),
     runtime_deps = [

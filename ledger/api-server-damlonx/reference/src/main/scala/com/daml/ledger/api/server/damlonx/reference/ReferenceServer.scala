@@ -3,9 +3,10 @@
 
 package com.daml.ledger.api.server.damlonx.reference
 
-import java.io.File
+import java.io.{File, FileWriter}
 import java.time.Instant
 import java.util.zip.ZipFile
+import java.nio.file.{Paths}
 
 import akka.NotUsed
 import akka.actor.ActorSystem
@@ -38,9 +39,12 @@ object ReferenceServer extends App {
 
   val defaultConfig = Config(
     port = 6865,
+    outputPortFile = None,
     files = Seq(),
     badServer = false
   )
+
+  println(s"Running in ${Paths.get(".").toAbsolutePath}")
 
   val argParser = new scopt.OptionParser[Config]("ledger-reference-server") {
     head("Ledger Reference Server")
@@ -50,7 +54,11 @@ object ReferenceServer extends App {
     opt[Seq[File]]('d', "dars")
       .valueName("<dar1>,<dar2>...")
       .action((x, c) => c.copy(files = x))
-      .text("DARs/dalfs to include")
+      .text("DARs to include")
+    opt[String]("port-file")
+      .valueName("path/to/file.txt")
+      .action((x, c) => c.copy(outputPortFile = Some(x)))
+      .text("File path where server should write it's selected port")
     opt[Unit]("bad-server")
       .action((_, c) => c.copy(badServer = true))
       .text("Simulate a badly behaving server that returns empty transactions. Defaults to false.")
@@ -94,11 +102,19 @@ object ReferenceServer extends App {
     tsb
   )
 
+  config.outputPortFile match {
+    case Some(fp) =>
+      val wr = new FileWriter(fp);
+      wr.write(s"${server.getRunningPort.toString()}");
+      wr.close();
+    case None =>
+  }
+
   // Add a hook to close the server. Invoked when Ctrl-C is pressed.
   Runtime.getRuntime.addShutdownHook(new Thread(() => server.close()))
 }
 
-final case class Config(port: Int, files: Seq[File], badServer: Boolean)
+final case class Config(port: Int, files: Seq[File], outputPortFile: Option[String], badServer: Boolean)
 
 // simulate a bad read service by returning only
 // empty transactions.

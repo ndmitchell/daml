@@ -160,6 +160,10 @@ object LedgerApiTestTool {
       .action((x, c) => c.copy(port = x))
       .text("Ledger API server port. Defaults to 6865.")
 
+    opt[Int]("target-port")
+      .action((x, c) => c.copy(port = x))
+      .text("Alternative name of --port.")
+
     opt[String]('h', "host")
       .action((x, c) => c.copy(host = x))
       .text("Ledger API server host. Defaults to localhost.")
