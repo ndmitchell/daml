@@ -3,11 +3,12 @@
 
 package com.digitalasset.daml.lf
 
-import scalaz.{Applicative, Traverse}
-
+import scalaz.{Applicative, Equal, Traverse}
+import scalaz.syntax.equal._
+import scalaz.std.list._
 import scala.language.higherKinds
 
-case class Dar[A](main: A, dependencies: List[A]) {
+final case class Dar[A](main: A, dependencies: List[A]) {
   lazy val all: List[A] = main :: dependencies
 }
 
@@ -24,5 +25,10 @@ object Dar {
       val gbs: G[List[B]] = fa.dependencies.traverse(f)
       ^(gb, gbs)((b, bs) => Dar(b, bs))
     }
+  }
+
+  implicit def darEqual[A: Equal]: Equal[Dar[A]] = new Equal[Dar[A]] {
+    override def equal(a1: Dar[A], a2: Dar[A]): Boolean =
+      a1.main === a2.main && a1.dependencies === a2.dependencies
   }
 }
