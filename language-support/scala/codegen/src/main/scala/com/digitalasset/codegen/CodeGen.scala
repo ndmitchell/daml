@@ -98,7 +98,7 @@ object CodeGen {
 
   private def parsePayload(reader: UniversalArchiveReader[Payload])(
       f: File): String \/ Dar[Payload] =
-    reader.readArchive(f) match {
+    reader.readFile(f) match {
       case Success(p) => \/.right(p)
       case Failure(e) =>
         e.printStackTrace()
