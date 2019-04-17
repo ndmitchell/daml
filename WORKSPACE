@@ -169,34 +169,12 @@ dev_env_tool(
     win_tool = "msys2-20180531",
 )
 
-# c2hs
-nixpkgs_package(
-    name = "c2hs",
-    attribute_path = "ghcWithC2hs",
-    build_file_content = '''
-
-package(default_visibility = [ "//visibility:public" ])
-
-filegroup(
-    name = "bin",
-    srcs = ["bin/c2hs"],
-)
-  ''',
-    nix_file = "//nix:bazel.nix",
-    nix_file_deps = common_nix_file_deps + [
-        "//nix:ghc.nix",
-        "//nix:with-packages-wrapper.nix",
-        "//nix:overrides/ghc-8.6.4.nix",
-        "//nix:overrides/c2hs-0.28.6.nix",
-        "//nix:overrides/ghc-8.6.3-binary.nix",
-        "//nix:overrides/language-c-0.8.2.nix",
-    ],
-    repositories = dev_env_nix_repos,
-)
-
 load(
     "@io_tweag_rules_haskell//haskell:haskell.bzl",
     "haskell_register_ghc_bindists",
+)
+load(
+    "@io_tweag_rules_haskell//haskell:nixpkgs.bzl",
     "haskell_register_ghc_nixpkgs",
 )
 
@@ -258,6 +236,14 @@ haskell_register_ghc_bindists(
 nixpkgs_package(
     name = "jq",
     attribute_path = "jq",
+    nix_file = "//nix:bazel.nix",
+    nix_file_deps = common_nix_file_deps,
+    repositories = dev_env_nix_repos,
+)
+
+nixpkgs_package(
+    name = "mvn_nix",
+    attribute_path = "mvn",
     nix_file = "//nix:bazel.nix",
     nix_file_deps = common_nix_file_deps,
     repositories = dev_env_nix_repos,
@@ -414,7 +400,7 @@ hazel_repositories(
         extra =
             # Read [Working on ghc-lib] for ghc-lib update instructions at
             # https://github.com/DACH-NY/daml/blob/master/ghc-lib/working-on-ghc-lib.md
-            hazel_ghclibs("0.20190413", "278c29a27c74b9daf54300a7d1ddc6513c4403fa1b5a7008df526eb67154f149", "b3aaef778935aa5bc5a238b74703a3a274046bb09b195ad02ce2ab29f1dc45dd") +
+            hazel_ghclibs("0.20190415", "a3a7474b04b811c4aec85a474c174812714f95bdf750ca748ddfcba0baec537a", "98c1b9ed0342660db83371a87cda6c0e9b6055dae5dfb0fa05a857d00d9caee9") +
             hazel_github_external("awakesecurity", "proto3-wire", "43d8220dbc64ef7cc7681887741833a47b61070f", "1c3a7fbf4ab3308776675c6202583f9750de496757f3ad4815e81edd122d75e1") +
             hazel_github_external("ndmitchell", "proto3-suite", "91ed0b3e0632f354043e33c17f2183c13e8d58c5", "f8543522389bda97272b14d89c271388e45bce87f0829de65f23add5b68fd70e") +
             hazel_hackage("bytestring-nums", "0.3.6", "bdca97600d91f00bb3c0f654784e3fbd2d62fcf4671820578105487cdf39e7cd") +
@@ -423,7 +409,13 @@ hazel_repositories(
             hazel_hackage("js-dgtable", "0.5.2", "e28dd65bee8083b17210134e22e01c6349dc33c3b7bd17705973cd014e9f20ac") +
             hazel_hackage("shake", "0.17.8", "ade4162f7540f044f0446981120800076712d1f98d30c5b5344c0f7828ec49a2") +
             hazel_hackage("filepattern", "0.1.1", "f7fc5bdcfef0d43a793a3c64e7c0fd3b1d35eea97a37f0e69d6612ab255c9b4b") +
-            hazel_hackage("terminal-progress-bar", "0.4.0.1", "c5a9720fcbcd9d83f9551e431ee3975c61d7da6432aa687aef0c0e04e59ae277"),
+            hazel_hackage("terminal-progress-bar", "0.4.0.1", "c5a9720fcbcd9d83f9551e431ee3975c61d7da6432aa687aef0c0e04e59ae277") +
+            hazel_hackage(
+                "unix-compat",
+                "0.5.1",
+                "a39d0c79dd906763770b80ba5b6c5cb710e954f894350e9917de0d73f3a19c52",
+                patches = ["@com_github_digital_asset_daml//bazel_tools:unix-compat.patch"],
+            ),
         pkgs = packages,
     ),
 )

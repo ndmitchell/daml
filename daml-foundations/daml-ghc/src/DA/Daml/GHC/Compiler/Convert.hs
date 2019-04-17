@@ -101,12 +101,12 @@ import           Data.List.Extra
 import qualified Data.Map.Strict as MS
 import           Data.Maybe
 import qualified Data.NameMap as NM
-import           Data.Ratio
 import qualified Data.Set as Set
 import           Data.Tagged
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as T
 import           Data.Tuple.Extra
+import           Data.Ratio
 import           "ghc-lib" GHC
 import           "ghc-lib" GhcPlugins as GHC hiding ((<>))
 import           "ghc-lib-parser" Pair
@@ -239,6 +239,27 @@ convertInt64 x
         pure $ EBuiltin $ BEInt64 (fromInteger x)
     | otherwise =
         unsupported "Int literal out of bounds" (negate x)
+
+convertRational :: Integer -> Integer -> ConvertM LF.Expr
+convertRational num denom
+ =
+    -- the denominator needs to be a divisor of 10^10.
+    -- num % denom * 10^10 needs to fit within a 128bit signed number.
+    -- note that we can also get negative rationals here, hence we ask for upperBound128Bit - 1 as
+    -- upper limit.
+    if | 10 ^ maxPrecision `mod` denom == 0 &&
+             abs (r * 10 ^ maxPrecision) <= upperBound128Bit - 1 ->
+           pure $ EBuiltin $ BEDecimal $ fromRational r
+       | otherwise ->
+           unsupported
+               ("Rational is out of bounds: " ++
+                show ((fromInteger num / fromInteger denom) :: Double) ++
+                ".  Maximal supported precision is e^-10, maximal range after multiplying with 10^10 is [10^38 -1, -10^38 + 1]")
+               (num, denom)
+  where
+    r = num % denom
+    upperBound128Bit = 10 ^ (38 :: Integer)
+    maxPrecision = 10 :: Integer
 
 convertModule :: LF.Version -> MS.Map UnitId T.Text -> GhcModule -> Either Diagnostic LF.Module
 convertModule lfVersion pkgMap mod0 = runConvertM (ConversionEnv (gmPath mod0) Nothing) $ do
@@ -474,7 +495,7 @@ convertBind2 env (Rec xs) = concat <$> traverse (\(a, b) -> convertBind env (Non
 -- during conversion to DAML-LF together with their constructors since we
 -- deliberately remove 'GHC.Types.Opaque' as well.
 internalTypes :: [String]
-internalTypes = ["Scenario","Update","ContractId","Time","Date","Party"]
+internalTypes = ["Scenario","Update","ContractId","Time","Date","Party","Pair"]
 
 internalFunctions :: MS.Map GHC.ModuleName [String]
 internalFunctions = MS.fromList $ map (first mkModuleName)
@@ -490,7 +511,7 @@ internalFunctions = MS.fromList $ map (first mkModuleName)
         , "$dminternalFetchByKey"
         , "$dminternalLookupByKey"
         ])
-    , ("DA.Internal.LF", map ("$W" ++) internalTypes)
+    , ("DA.Internal.LF", "unpackPair" : map ("$W" ++) internalTypes)
     , ("GHC.Base",
         [ "getTag"
         ])
@@ -568,6 +589,13 @@ convertExpr env0 e = do
             { retrieveByKeyTemplate = tmpl'
             , retrieveByKeyKey = EVar varV1
             }
+    go env (VarIs "unpackPair") (LType (StrLitTy f1) : LType (StrLitTy f2) : LType t1 : LType t2 : args)
+        = fmap (, args) $ do
+            t1 <- convertType env t1
+            t2 <- convertType env t2
+            let fields = [(mkField f1, t1), (mkField f2, t2)]
+            (repackStruct, _) <- mkRepackStruct env fields varV1
+            pure $ ETmLam (varV1, TTuple fields) repackStruct
     go env (VarIs "primitive") (LType (isStrLitTy -> Just y) : LType t : args)
         = fmap (, args) $ convertPrim (envLfVersion env) (unpackFS y) <$> convertType env t
     go env (VarIs "getFieldPrim") (LType (isStrLitTy -> Just name) : LType record : LType _field : args) = fmap (, args) $ do
@@ -588,7 +616,7 @@ convertExpr env0 e = do
             ETmLam (varV1, field') $ ETmLam (varV2, record') $
             ERecUpd (fromTCon record') (mkField $ unpackFS name) (EVar varV2) (EVar varV1)
     go env (VarIs "fromRational") (LExpr (VarIs ":%" `App` tyInteger `App` Lit (LitNumber _ top _) `App` Lit (LitNumber _ bot _)) : args)
-        = fmap (, args) $ pure $ EBuiltin $ BEDecimal $ fromRational $ top % bot
+        = fmap (, args) $ convertRational top bot
     go env (VarIs "negate") (tyInt : LExpr (VarIs "$fAdditiveInt") : LExpr (untick -> VarIs "fromInteger" `App` Lit (LitNumber _ x _)) : args)
         = fmap (, args) $ convertInt64 (negate x)
     go env (VarIs "fromInteger") (LExpr (Lit (LitNumber _ x _)) : args)
@@ -1073,6 +1101,13 @@ convertType env o@(TypeCon t ts)
         if supportsArrowType (envLfVersion env) || length ts' == 2
           then foldl TApp TArrow <$> traverse (convertType env) ts'
           else unsupported "Partial application of (->)" o
+    | Just m <- nameModule_maybe (getName t)
+    , GHC.moduleName m == mkModuleName "DA.Internal.LF"
+    , getOccString t == "Pair"
+    , [StrLitTy f1, StrLitTy f2, t1, t2] <- ts = do
+        t1 <- convertType env t1
+        t2 <- convertType env t2
+        pure $ TTuple [(mkField f1, t1), (mkField f2, t2)]
     | tyConFlavour t == TypeSynonymFlavour = convertType env $ expandTypeSynonyms o
     | otherwise = mkTApps <$> convertTyCon env t <*> traverse (convertType env) ts
 convertType env t | Just (v, t') <- splitForAllTy_maybe t
