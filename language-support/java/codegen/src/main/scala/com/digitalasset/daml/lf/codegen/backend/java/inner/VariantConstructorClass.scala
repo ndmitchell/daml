@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.codegen.backend.java.inner
@@ -22,7 +22,7 @@ object VariantConstructorClass extends StrictLogging {
       constructorName: String,
       javaName: String,
       body: Type,
-      packagePrefixes: Map[PackageId, String]) = {
+      packagePrefixes: Map[PackageId, String]): TypeSpec = {
     TrackLineage.of("variant constructor", constructorName) {
       logger.info("Start")
 
@@ -35,7 +35,7 @@ object VariantConstructorClass extends StrictLogging {
           javaType.rawType.simpleName
       })
 
-      val conversionMethods = List(findTypeParams(body), typeArgs).distinct.flatMap { params =>
+      val conversionMethods = distinctTypeVars(body, typeArgs).flatMap { params =>
         List(
           toValue(constructorName, params, body, variantFieldName, packagePrefixes),
           fromValue(constructorName, params, className, body, packagePrefixes)
@@ -91,7 +91,8 @@ object VariantConstructorClass extends StrictLogging {
       packagePrefixes: Map[PackageId, String]) = {
     val valueParam = ParameterSpec.builder(classOf[Value], "value$").build()
 
-    val converterParams = FromValueExtractorParameters.generate(typeParameters).parameterSpecs
+    val converterParams =
+      FromValueExtractorParameters.generate(typeParameters).parameterSpecs
     MethodSpec
       .methodBuilder("fromValue")
       .addModifiers(Modifier.PUBLIC, Modifier.STATIC)

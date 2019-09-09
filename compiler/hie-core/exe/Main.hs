@@ -1,5 +1,6 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
+{-# OPTIONS_GHC -Wno-dodgy-imports #-} -- GHC no longer exports def in GHC 8.6 and above
 
 module Main(main) where
 
@@ -25,6 +26,9 @@ import Development.IDE.Types.Logger
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import Language.Haskell.LSP.Messages
+import Linker
+import System.Info
+import Data.Version
 import Development.IDE.LSP.LanguageServer
 import System.Directory.Extra as IO
 import System.Environment
@@ -35,7 +39,7 @@ import qualified Data.Set as Set
 -- import CmdLineParser
 -- import DynFlags
 -- import Panic
-import GHC
+import GHC hiding (def)
 import qualified GHC.Paths
 
 import HIE.Bios
@@ -48,7 +52,7 @@ main :: IO ()
 main = do
     -- WARNING: If you write to stdout before runLanguageServer
     --          then the language server will not work
-    hPutStrLn stderr "Starting hie-core"
+    hPutStrLn stderr $ "Starting hie-core (GHC v" ++ showVersion compilerVersion ++ ")"
     Arguments{..} <- getArguments
 
     -- lock to avoid overlapping output on stdout
@@ -64,10 +68,11 @@ main = do
     if argLSP then do
         t <- offsetTime
         hPutStrLn stderr "Starting LSP server..."
-        runLanguageServer def def $ \event vfs -> do
+        runLanguageServer def def $ \event vfs caps -> do
             t <- t
             hPutStrLn stderr $ "Started LSP server in " ++ showDuration t
-            let options = defaultIdeOptions $ liftIO $ newSession' =<< findCradle (dir <> "/")
+            let options = (defaultIdeOptions $ liftIO $ newSession' =<< findCradle (dir <> "/"))
+                    { optReportProgress = clientSupportsProgress caps }
             initialise (mainRule >> action kick) event logger options vfs
     else do
         putStrLn "[1/6] Finding hie-bios cradle"
@@ -124,6 +129,9 @@ showEvent lock (EventFileDiagnostics (toNormalizedFilePath -> file) diags) =
 showEvent lock e = withLock lock $ print e
 
 newSession' :: Cradle -> IO HscEnv
-newSession' cradle = getLibdir >>= \libdir -> runGhc (Just libdir) $ do
-    initializeFlagsWithCradle "" cradle
-    getSession
+newSession' cradle = getLibdir >>= \libdir -> do
+    env <- runGhc (Just libdir) $ do
+        initializeFlagsWithCradle "" cradle
+        getSession
+    initDynLinker env
+    pure env

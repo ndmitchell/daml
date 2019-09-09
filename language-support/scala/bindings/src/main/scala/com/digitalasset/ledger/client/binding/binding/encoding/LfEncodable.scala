@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client
@@ -22,8 +22,8 @@ object LfEncodable extends ValuePrimitiveEncoding[LfEncodable] {
     override def encoding(lte: LfTypeEncoding): lte.Out[P.Int64] = lte.primitive.valueInt64
   }
 
-  override implicit val valueDecimal: LfEncodable[P.Decimal] = new LfEncodable[P.Decimal] {
-    override def encoding(lte: LfTypeEncoding): lte.Out[P.Decimal] = lte.primitive.valueDecimal
+  override implicit val valueNumeric: LfEncodable[P.Numeric] = new LfEncodable[P.Numeric] {
+    override def encoding(lte: LfTypeEncoding): lte.Out[P.Numeric] = lte.primitive.valueNumeric
   }
 
   override implicit val valueParty: LfEncodable[P.Party] = new LfEncodable[P.Party] {

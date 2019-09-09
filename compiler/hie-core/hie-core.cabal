@@ -1,9 +1,10 @@
-cabal-version:      >= 1.18
+cabal-version:      1.20
 build-type:         Simple
+category:           Development
 name:               hie-core
-version:            0
-license:            BSD3
-x-license:          BSD3 OR Apache2
+version:            0.0.1
+license:            Apache-2.0
+license-file:       LICENSE
 author:             Digital Asset
 maintainer:         Digital Asset
 copyright:          Digital Asset 2018-2019
@@ -34,7 +35,7 @@ library
         filepath,
         ghc-boot-th,
         ghc-boot,
-        ghc,
+        ghc >= 8.4,
         hashable,
         haskell-lsp-types,
         haskell-lsp,
@@ -45,7 +46,7 @@ library
         prettyprinter,
         rope-utf16-splay,
         safe-exceptions,
-        shake,
+        shake >= 0.17.5,
         sorted-list,
         stm,
         syb,
@@ -54,6 +55,11 @@ library
         transformers,
         unordered-containers,
         utf8-string
+    if !os(windows)
+      build-depends:
+        unix
+      c-sources:
+        cbits/getmodtime.c
 
     cpp-options: -DGHC_STABLE
     default-extensions:

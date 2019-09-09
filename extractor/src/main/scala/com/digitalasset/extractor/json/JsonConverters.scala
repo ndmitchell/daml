@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.extractor.json
@@ -9,7 +9,7 @@ import com.digitalasset.daml.lf.data.{
   Ref,
   SortedLookupList,
   Time,
-  Decimal => LfDecimal
+  Numeric => LfNumeric
 }
 import com.digitalasset.daml.lf.value.{Value => V}
 import com.digitalasset.extractor.ledger.types.{Identifier, LedgerValue}
@@ -50,7 +50,7 @@ object JsonConverters {
     case V.ValueBool(value) => value.asJson
     case V.ValueContractId(value) => value.asJson
     case V.ValueInt64(value) => value.asJson
-    case V.ValueDecimal(value) => LfDecimal.toString(value).asJson
+    case V.ValueNumeric(value) => LfNumeric.toUnscaledString(value).asJson
     case V.ValueText(value) => value.asJson
     case V.ValueTimestamp(value) => value.asJson
     case V.ValueParty(value) => value.asJson

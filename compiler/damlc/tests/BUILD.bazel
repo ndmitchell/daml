@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 load("//bazel_tools:haskell.bzl", "da_haskell_binary", "da_haskell_test")
@@ -10,7 +10,7 @@ load(":util.bzl", "damlc_compile_test", "damlc_integration_test")
 da_haskell_test(
     name = "damlc-cliparser",
     srcs = ["src/CliParser.hs"],
-    hazel_deps = [
+    hackage_deps = [
         "tasty",
         "base",
         "optparse-applicative",
@@ -26,34 +26,20 @@ da_haskell_test(
 
 # Tests for damlc visual
 da_haskell_test(
-    name = "damlc-visual",
-    srcs = ["src/DamlcVisual.hs"],
-    data = [
-        ":visual-test-daml.dar",
-        ":visual/Basic.dot",
-    ],
-    hazel_deps = [
-        "tasty",
+    name = "daml-lf-reader",
+    srcs = ["src/DarReaderTest.hs"],
+    hackage_deps = [
         "base",
-        "extra",
-        "filepath",
-        "tasty-golden",
+        "bytestring",
+        "tasty",
         "tasty-hunit",
     ],
-    main_function = "VisualTest.main",
+    main_function = "DarReaderTest.main",
     src_strip_prefix = "tests",
     visibility = ["//visibility:private"],
     deps = [
         "//compiler/daml-lf-reader",
-        "//compiler/damlc:damlc-lib",
-        "//libs-haskell/bazel-runfiles",
     ],
-)
-
-# Test file used in damlc-visual-test
-daml_compile(
-    name = "visual-test-daml",
-    main_src = "visual/Basic.daml",
 )
 
 # Tests for damlc test
@@ -64,7 +50,7 @@ da_haskell_test(
         "//compiler/damlc/pkg-db",
         "//compiler/scenario-service/server:scenario_service_jar",
     ],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "extra",
         "tasty",
@@ -95,7 +81,7 @@ da_haskell_test(
         ":daml-test-files",
         "//compiler/damlc/pkg-db",
     ],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "tasty-hunit",
         "text",
@@ -110,12 +96,12 @@ da_haskell_test(
     ],
 )
 
-# Tests for daml-doctest
+# Unit tests for daml-doctest
 da_haskell_test(
     name = "daml-doctest",
     srcs = ["src/DA/Test/DamlDocTest.hs"],
     data = ["//compiler/damlc/pkg-db"],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "extra",
         "tasty",
@@ -135,6 +121,27 @@ da_haskell_test(
     ],
 )
 
+# Integration test for damlc doctest
+da_haskell_test(
+    name = "daml-doctest-integration",
+    srcs = ["src/DA/Test/DamlDocTestIntegration.hs"],
+    data = ["//compiler/damlc"],
+    hackage_deps = [
+        "base",
+        "extra",
+        "filepath",
+        "process",
+        "tasty",
+        "tasty-hunit",
+    ],
+    main_function = "DA.Test.DamlDocTestIntegration.main",
+    src_strip_prefix = "src",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//libs-haskell/bazel-runfiles",
+    ],
+)
+
 # Tests of damlc at the Shake API layer
 da_haskell_test(
     name = "shake",
@@ -146,11 +153,12 @@ da_haskell_test(
         "//compiler/damlc/pkg-db",
         "//compiler/scenario-service/server:scenario_service_jar",
     ],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "directory",
         "tasty-hunit",
         "text",
+        "containers",
     ],
     main_function = "DA.Test.ShakeIdeClient.main",
     src_strip_prefix = "src",
@@ -159,6 +167,7 @@ da_haskell_test(
         "//compiler/damlc/daml-compiler",
         "//compiler/damlc/daml-ide-core",
         "//compiler/damlc/daml-ide-core:ide-testing",
+        "//compiler/damlc/daml-visual",
         "//compiler/hie-core",
         "//libs-haskell/da-hs-base",
     ],
@@ -167,7 +176,7 @@ da_haskell_test(
 da_haskell_test(
     name = "position-mapping",
     srcs = ["src/DA/Test/PositionMapping.hs"],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "haskell-lsp",
         "haskell-lsp-types",
@@ -190,7 +199,7 @@ da_haskell_test(
 da_haskell_binary(
     name = "generate-module-tree",
     srcs = ["src/DA/Test/GenerateModuleTree.hs"],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "filepath",
     ],
@@ -227,7 +236,7 @@ damlc_compile_test(
     srcs = [":bond-trading"],
     heap_limit = "200M" if is_windows else "100M",
     main = "bond-trading/Test.daml",
-    stack_limit = "35K",
+    stack_limit = "100K" if is_windows else "35K",
 )
 
 filegroup(

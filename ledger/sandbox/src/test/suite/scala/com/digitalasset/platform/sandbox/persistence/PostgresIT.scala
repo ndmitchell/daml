@@ -1,14 +1,18 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.sandbox.persistence
 
-import com.digitalasset.platform.sandbox.stores.ledger.sql.dao.HikariJdbcConnectionProvider
+import com.digitalasset.platform.sandbox.stores.ledger.sql.dao.{
+  HikariJdbcConnectionProvider,
+  JdbcLedgerDao
+}
 import org.scalatest._
 
 class PostgresIT extends WordSpec with Matchers with PostgresAroundAll {
 
-  private lazy val connectionProvider = HikariJdbcConnectionProvider(postgresFixture.jdbcUrl, 4, 4)
+  private lazy val connectionProvider =
+    HikariJdbcConnectionProvider(postgresFixture.jdbcUrl, JdbcLedgerDao.Postgres, 4, 4)
 
   "Postgres" when {
 

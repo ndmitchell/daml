@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.speedy
@@ -290,6 +290,7 @@ object Repl {
 
     def prettyType(t0: Type, prec: Int = precTForall): String = t0 match {
       case TVar(n) => n
+      case TNat(n) => n.toString
       case TTyCon(con) =>
         prettyQualified(pkgId, modId, con)
       case TBuiltin(bt) => bt.toString.stripPrefix("BT")

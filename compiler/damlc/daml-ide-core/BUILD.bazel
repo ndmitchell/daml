@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 load(
@@ -6,13 +6,13 @@ load(
     "da_haskell_library",
 )
 
-exports_files(["hlint.yaml"])
+exports_files(["dlint.yaml"])
 
 da_haskell_library(
     name = "daml-ide-core",
     srcs = glob(["src/**/*.hs"]),
-    data = [":hlint.yaml"],
-    hazel_deps = [
+    data = [":dlint.yaml"],
+    hackage_deps = [
         "aeson",
         "base",
         "binary",
@@ -52,6 +52,7 @@ da_haskell_library(
         "//compiler/damlc/daml-doctest",
         "//compiler/damlc/daml-lf-conversion",
         "//compiler/damlc/daml-opts:daml-opts-types",
+        "//compiler/damlc/daml-visual",
         "//compiler/hie-core",
         "//compiler/scenario-service/client",
         "//libs-haskell/da-hs-base",
@@ -61,7 +62,7 @@ da_haskell_library(
 da_haskell_library(
     name = "ide-testing",
     srcs = glob(["test/**/*.hs"]),
-    hazel_deps = [
+    hackage_deps = [
         "aeson",
         "base",
         "containers",
@@ -72,6 +73,8 @@ da_haskell_library(
         "haskell-lsp-types",
         "mtl",
         "network-uri",
+        "regex-tdfa",
+        "regex-tdfa-text",
         "stm",
         "temporary",
         "text",
@@ -82,11 +85,15 @@ da_haskell_library(
     visibility = ["//visibility:public"],
     deps = [
         ":daml-ide-core",
+        "//compiler/daml-lf-ast",
+        "//compiler/damlc:damlc-lib",
         "//compiler/damlc/daml-compiler",
         "//compiler/damlc/daml-opts",
         "//compiler/damlc/daml-opts:daml-opts-types",
+        "//compiler/damlc/daml-visual",
         "//compiler/hie-core",
         "//libs-haskell/bazel-runfiles",
+        "//libs-haskell/da-hs-base",
         "//libs-haskell/test-utils",
     ],
 )

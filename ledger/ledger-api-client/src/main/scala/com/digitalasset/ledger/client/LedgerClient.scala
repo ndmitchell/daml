@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client
@@ -26,7 +26,7 @@ import com.digitalasset.ledger.client.services.commands.{CommandClient, Synchron
 import com.digitalasset.ledger.client.services.identity.LedgerIdentityClient
 import com.digitalasset.ledger.client.services.pkg.PackageClient
 import com.digitalasset.ledger.client.services.transactions.TransactionClient
-import io.grpc.ManagedChannel
+import io.grpc.Channel
 import io.grpc.netty.{NegotiationType, NettyChannelBuilder}
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -98,7 +98,7 @@ object LedgerClient {
     forChannel(configuration, channel)
 
   }
-  def forChannel(configuration: LedgerClientConfiguration, channel: ManagedChannel)(
+  def forChannel(configuration: LedgerClientConfiguration, channel: Channel)(
       implicit ec: ExecutionContext,
       esf: ExecutionSequencerFactory): Future[LedgerClient] = {
     apply(

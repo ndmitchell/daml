@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.validation
@@ -110,6 +110,12 @@ case object URScenario extends UnserializabilityReason {
 }
 case object URTuple extends UnserializabilityReason {
   def pretty: String = "structural record"
+}
+case object URNumeric extends UnserializabilityReason {
+  def pretty: String = "unapplied Numeric"
+}
+case object URNat extends UnserializabilityReason {
+  def pretty: String = "Nat"
 }
 case object URList extends UnserializabilityReason {
   def pretty: String = "unapplied List"

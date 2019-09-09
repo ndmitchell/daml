@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.data
@@ -63,10 +63,10 @@ object Time {
 
     @throws[IllegalArgumentException]
     final def assertFromString(s: String): T =
-      assert(fromString(s))
+      assertRight(fromString(s))
 
     def assertFromDaysSinceEpoch(days: Int): Date =
-      assert(fromDaysSinceEpoch(days))
+      assertRight(fromDaysSinceEpoch(days))
 
   }
 
@@ -125,7 +125,7 @@ object Time {
 
     @throws[IllegalArgumentException]
     def assertFromLong(micros: Long): Timestamp =
-      assert(fromLong(micros))
+      assertRight(fromLong(micros))
 
     def fromString(str: String): Either[String, Timestamp] =
       Try(assertMicrosFromString(str)).toEither.left
@@ -134,7 +134,7 @@ object Time {
 
     @throws[IllegalArgumentException]
     final def assertFromString(s: String): T =
-      assert(fromString(s))
+      assertRight(fromString(s))
 
     def fromInstant(i: Instant): Either[String, Timestamp] =
       Try(assertMicrosFromInstant(i)).toEither.left

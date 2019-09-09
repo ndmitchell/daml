@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.codegen.backend.java.inner
@@ -78,10 +78,8 @@ object ToValueGenerator {
     damlType match {
       case TypeVar(tvName) =>
         CodeBlock.of("toValue$L.apply($L)", JavaEscaper.escapeString(tvName), accessor)
-      case TypePrim(
-          PrimTypeBool | PrimTypeInt64 | PrimTypeDecimal | PrimTypeText | PrimTypeParty,
-          _
-          ) =>
+      case TypeNumeric(_) |
+          TypePrim(PrimTypeBool | PrimTypeInt64 | PrimTypeText | PrimTypeParty, _) =>
         CodeBlock.of("new $T($L)", toAPITypeName(damlType), accessor)
       case TypePrim(PrimTypeTimestamp, _) =>
         CodeBlock.of("$T.fromInstant($L)", toAPITypeName(damlType), accessor)

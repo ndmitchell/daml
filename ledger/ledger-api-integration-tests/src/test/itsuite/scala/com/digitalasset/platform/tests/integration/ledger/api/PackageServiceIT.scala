@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.tests.integration.ledger.api
@@ -25,8 +25,8 @@ import scalaz.syntax.tag._
 @SuppressWarnings(Array("org.wartremover.warts.Any"))
 class PackageServiceIT
     extends AsyncWordSpec
-    with MultiLedgerFixture
     with AkkaBeforeAndAfterAll
+    with MultiLedgerFixture
     with SuiteResourceManagementAroundAll
     with AsyncTimeLimitedTests
     with Matchers

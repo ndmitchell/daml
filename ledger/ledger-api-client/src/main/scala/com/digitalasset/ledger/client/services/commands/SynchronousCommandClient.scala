@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client.services.commands
@@ -13,5 +13,20 @@ class SynchronousCommandClient(commandService: CommandService) {
 
   def submitAndWait(submitAndWaitRequest: SubmitAndWaitRequest): Future[Empty] = {
     commandService.submitAndWait(submitAndWaitRequest)
+  }
+
+  def submitAndWaitForTransactionId(
+      submitAndWaitRequest: SubmitAndWaitRequest): Future[SubmitAndWaitForTransactionIdResponse] = {
+    commandService.submitAndWaitForTransactionId(submitAndWaitRequest)
+  }
+
+  def submitAndWaitForTransaction(
+      submitAndWaitRequest: SubmitAndWaitRequest): Future[SubmitAndWaitForTransactionResponse] = {
+    commandService.submitAndWaitForTransaction(submitAndWaitRequest)
+  }
+
+  def submitAndWaitForTransactionTree(submitAndWaitRequest: SubmitAndWaitRequest)
+    : Future[SubmitAndWaitForTransactionTreeResponse] = {
+    commandService.submitAndWaitForTransactionTree(submitAndWaitRequest)
   }
 }

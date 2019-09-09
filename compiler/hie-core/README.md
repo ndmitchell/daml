@@ -17,6 +17,12 @@ There are more details about our approach [in this blog post](https://4ta.uk/p/s
 
 ### Install `hie-core`
 
+#### With Nix
+
+[See hie-core-nix repository](https://github.com/hercules-ci/hie-core-nix)
+
+#### With Cabal or Stack
+
 First install the `hie-core` binary using `stack` or `cabal`, e.g.
 
 1. `git clone https://github.com/digital-asset/daml.git`
@@ -61,58 +67,59 @@ Now openning a `.hs` file should work with `hie-core`.
 
 ### Using with Emacs
 
-The frst step is to install required Emacs packages. If you don't already have [Melpa](https://melpa.org/#/) package installation configured in your `.emacs`, put this stanza at the top.
-
+If you don't already have [MELPA](https://melpa.org/#/) package installation configured, visit MELPA [getting started](https://melpa.org/#/getting-started) page to get set up. Then, install [`use-package`](https://melpa.org/#/use-package). Finally, add the following lines to your `.emacs`.
 ```elisp
-;;Melpa packages support
-(require 'package)
-(let* ((no-ssl (and (memq system-type '(windows-nt ms-dos))
-                    (not (gnutls-available-p))))
-       (proto (if no-ssl "http" "https")))
-  (when no-ssl
-    (warn "\
-Your version of Emacs does not support SSL connections,
-which is unsafe because it allows man-in-the-middle attacks.
-There are two things you can do about this warning:
-1. Install an Emacs version that does support SSL and be safe.
-2. Remove this warning from your init file so you won't see it again."))
-  ;; Comment/uncomment these two lines to enable/disable MELPA and MELPA Stable as desired
-  (add-to-list 'package-archives (cons "melpa" (concat proto "://melpa.org/packages/")) t)
-  ;;(add-to-list 'package-archives (cons "melpa-stable" (concat proto "://stable.melpa.org/packages/")) t)
-  (when (< emacs-major-version 24)
-    ;; For important compatibility libraries like cl-lib
-    (add-to-list 'package-archives (cons "gnu" (concat proto "://elpa.gnu.org/packages/")))))
-(package-initialize)
-;; Remember : to avoid package-not-found errors, refresh the package
-;; database now and then with M-x package-refresh-contents.
+;; LSP
+(use-package flycheck
+  :ensure t
+  :init
+  (global-flycheck-mode t))
+(use-package yasnippet
+  :ensure t)
+(use-package lsp-mode
+  :ensure t
+  :hook (haskell-mode . lsp)
+  :commands lsp)
+(use-package lsp-ui
+  :ensure t
+  :commands lsp-ui-mode)
+(use-package lsp-haskell
+ :ensure t
+ :config
+ (setq lsp-haskell-process-path-hie "hie-core")
+ (setq lsp-haskell-process-args-hie '())
+ ;; Comment/uncomment this line to see interactions between lsp client/server.
+ ;;(setq lsp-log-io t)
+)
 ```
 
-When this is in your `.emacs` and evaluated, `M-x package-refresh-contents` to get the package database downloaded and then `M-x package-list-packages` to display the available packages. Click on a package to install it. You'll need to install the following packages:
+### Using with Vim/Neovim
 
-* `lsp-haskell`
-* `lsp-ui`
-* `flycheck`
-* `yasnippet`
+#### LanguageClient-neovim
+Install [LanguageClient-neovim](https://github.com/autozimu/LanguageClient-neovim)
 
-When done with this, add the following lines to your `.emacs`:
-
-```elisp
-;; LSP support for Haskell
-(require 'lsp)
-(require 'lsp-haskell)
-(require 'yasnippet)
-(add-hook 'haskell-mode-hook #'lsp)
-(setq lsp-haskell-process-path-hie "hie-core")
-(setq lsp-haskell-process-args-hie '())
+Add this to your vim config:
+```vim
+let g:LanguageClient_rootMarkers = ['*.cabal', 'stack.yaml']
+let g:LanguageClient_serverCommands = {
+    \ 'rust': ['rls'],
+    \ 'haskell': ['hie-core', '--lsp'],
+    \ }
 ```
 
-Optionally, you may wish to add the following conveniences:
+Refer to `:he LanguageClient` for more details on usage and configuration.
 
-```elisp
-;; Enable LSP logging (helpful for debugging)
-(setq lsp-log-io t)
+#### vim-lsp
+Install [vim-lsp](https://github.com/prabirshrestha/vim-lsp).
 
-;; Keyboard mappings for goto next/previous error
-(define-key flymake-mode-map (kbd "M-n") 'flymake-goto-next-error)
-(define-key flymake-mode-map (kbd "M-p") 'flymake-goto-prev-error)
+Add this to your vim config:
+
+```vim
+au User lsp_setup call lsp#register_server({
+    \ 'name': 'hie-core',
+    \ 'cmd': {server_info->['/your/path/to/hie-core', '--lsp']},
+    \ 'whitelist': ['haskell'],
+    \ })
 ```
+
+To verify it works move your cursor over a symbol and run `:LspHover`.

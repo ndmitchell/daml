@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 
@@ -80,7 +80,6 @@ prettyDiagnostic (fp, LSP.Diagnostic{..}) =
               LSP.DsInfo -> annotate $ color Blue
               LSP.DsHint -> annotate $ color Magenta
             $ stringParagraphs _message
-        , slabel_ "Code:" $ pretty _code
         ]
     where
         sev = fromMaybe LSP.DsError _severity

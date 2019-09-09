@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 
@@ -149,6 +149,8 @@ prettyScenarioError world ScenarioError{..} = runM scenarioErrorNodes world $ do
         vcat
           (map (prettyTraceMessage world)
                (V.toList scenarioErrorTraceLog))
+  let ppStackTraceEntry loc =
+         "-" <-> ltext (locationDefinition loc) <-> parens (prettyLocation world loc)
   pure $
     vsep $ catMaybes
     [ Just $ error_ (text "Scenario execution" <->
@@ -158,10 +160,9 @@ prettyScenarioError world ScenarioError{..} = runM scenarioErrorNodes world $ do
          <-> prettyMayLocation world scenarioErrorCommitLoc <> char ':'))
       $$ nest 2 ppError
 
-    , if isNothing scenarioErrorLastLoc
+    , if V.null scenarioErrorStackTrace
       then Nothing
-      else Just $ label_ "Last source location:"
-                $ prettyMayLocation world scenarioErrorLastLoc
+      else Just $ vcat $ "Stack trace:" : map ppStackTraceEntry (reverse $ V.toList scenarioErrorStackTrace)
 
     , Just $ "Ledger time:" <-> prettyTimestamp scenarioErrorLedgerTime
 
@@ -424,8 +425,10 @@ prettyCommit txid mbLoc Transaction{..} = do
      $$ children
 
 prettyMayLocation :: LF.World -> Maybe Location -> Doc SyntaxClass
-prettyMayLocation _ Nothing = text "unknown source"
-prettyMayLocation world (Just (Location mbPkgId modName sline scol eline _ecol)) =
+prettyMayLocation world = maybe (text "unknown source") (prettyLocation world)
+
+prettyLocation :: LF.World -> Location -> Doc SyntaxClass
+prettyLocation world (Location mbPkgId modName sline scol eline _ecol _definition) =
       maybe id (\path -> linkSC (url path) title)
         (lookupModule world mbPkgId (LF.ModuleName (T.splitOn "." (TL.toStrict modName))) >>= LF.moduleSource)
     $ text title
@@ -796,44 +799,15 @@ renderValue world name = \case
         renderField (Field label mbValue) =
             renderValue world (name ++ [TL.toStrict label]) (fromJust mbValue)
 
-templateConName :: Identifier -> LF.Qualified LF.TypeConName
-templateConName (Identifier mbPkgId (TL.toStrict -> qualName)) = LF.Qualified pkgRef  mdN tpl
-  where (mdN, tpl) = case T.splitOn ":" qualName of
-          [modName, defN] -> (LF.ModuleName (T.splitOn "." modName) , LF.TypeConName (T.splitOn "." defN) )
-          _ -> error "malformed identifier"
-        pkgRef = case mbPkgId of
-                  Just (PackageIdentifier (Just (PackageIdentifierSumPackageId pkgId))) -> LF.PRImport $ LF.PackageId $ TL.toStrict pkgId
-                  Just (PackageIdentifier (Just (PackageIdentifierSumSelf _))) -> LF.PRSelf
-                  Just (PackageIdentifier Nothing) -> error "unidentified package reference"
-                  Nothing -> error "unidentified package reference"
-
-labledField :: T.Text -> T.Text -> T.Text
-labledField fname "" = fname
-labledField fname label = fname <> "." <> label
-
-typeConFieldsNames :: LF.World -> (LF.FieldName, LF.Type) -> [T.Text]
-typeConFieldsNames world (LF.FieldName fName, LF.TConApp tcn _) = map (labledField fName) (typeConFields tcn world)
-typeConFieldsNames _ (LF.FieldName fName, _) = [fName]
-
-typeConFields :: LF.Qualified LF.TypeConName -> LF.World -> [T.Text]
-typeConFields qName world = case LF.lookupDataType qName world of
-  Right dataType -> case LF.dataCons dataType of
-    LF.DataRecord re -> concatMap (typeConFieldsNames world) re
-    LF.DataVariant _ -> [""]
-    LF.DataEnum _ -> [""]
-  Left _ -> error "malformed template constructor"
-
-renderHeader :: LF.World -> Identifier -> S.Set T.Text -> H.Html
-renderHeader world identifier parties = H.tr $ mconcat
+renderRow :: LF.World -> S.Set T.Text -> NodeInfo -> (H.Html, H.Html)
+renderRow world parties NodeInfo{..} =
+    let (ths, tds) = renderValue world [] niValue
+        header = H.tr $ mconcat
             [ foldMap (H.th . (H.div H.! A.class_ "observer") . H.text) parties
             , H.th "id"
             , H.th "status"
-            , foldMap (H.th . H.text) (typeConFields (templateConName identifier) world)
+            , ths
             ]
-
-renderRow :: LF.World -> S.Set T.Text -> NodeInfo -> H.Html
-renderRow world parties NodeInfo{..} =
-    let (_, tds) = renderValue world [] niValue
         observed party = if party `S.member` niObservers then "X" else "-"
         active = if niActive then "active" else "archived"
         row = H.tr H.! A.class_ (H.textValue active) $ mconcat
@@ -842,15 +816,16 @@ renderRow world parties NodeInfo{..} =
             , H.td (H.text active)
             , tds
             ]
-    in row
+    in (header, row)
 
+-- TODO(MH): The header should be rendered from the type rather than from the
+-- first value.
 renderTable :: LF.World -> Table -> H.Html
 renderTable world Table{..} = H.div H.! A.class_ active $ do
     let parties = S.unions $ map niObservers tRows
     H.h1 $ renderPlain $ prettyDefName world tTemplateId
-    let rows = map (renderRow world parties) tRows
-    let header = renderHeader world tTemplateId parties
-    H.table $ header <> mconcat rows
+    let (headers, rows) = unzip $ map (renderRow world parties) tRows
+    H.table $ head headers <> mconcat rows
     where
         active = if any niActive tRows then "active" else "archived"
 

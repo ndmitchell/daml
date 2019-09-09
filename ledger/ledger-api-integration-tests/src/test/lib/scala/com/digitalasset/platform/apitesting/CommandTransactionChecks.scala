@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.apitesting
@@ -90,7 +90,7 @@ abstract class CommandTransactionChecks
       Vector(
         RecordField("operator", Alice.asParty),
         RecordField("integer", 1.asInt64),
-        RecordField("decimal", "1.1".asDecimal),
+        RecordField("decimal", "1.1000000000".asNumeric),
         RecordField("text", Value(Text("text"))),
         RecordField("bool", Value(Bool(true))),
         RecordField("time", Value(Timestamp(0))),
@@ -200,7 +200,7 @@ abstract class CommandTransactionChecks
         val newArgs =
           ctx.testingHelpers.recordWithArgument(
             paramShowcaseArgs,
-            RecordField("decimal", Some(Value(Value.Sum.Decimal("37.0")))))
+            RecordField("decimal", Some(Value(Value.Sum.Numeric("37.0000000000")))))
         verifyParamShowcaseChoice(
           ctx,
           "Choice1", // choice name
@@ -522,25 +522,25 @@ abstract class CommandTransactionChecks
             testIdsGenerator.testCommandId("Decimal-scale"),
             alice,
             templateIds.decimalRounding,
-            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("0.00000000005".asDecimal)))),
+            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("0.00000000005".asNumeric)))),
             Code.INVALID_ARGUMENT,
-            "Could not read Decimal string"
+            "Cannot represent 0.00000000005 as (Numeric 10) without lost of precision"
           )
           _ <- ctx.testingHelpers.failingCreate(
             testIdsGenerator.testCommandId("Decimal-bounds-positive"),
             alice,
             templateIds.decimalRounding,
-            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("10000000000000000000000000000.0000000000".asDecimal)))),
+            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("10000000000000000000000000000.0000000000".asNumeric)))),
             Code.INVALID_ARGUMENT,
-            "Could not read Decimal string"
+            s"Out-of-bounds (Numeric 10)"
           )
           _ <- ctx.testingHelpers.failingCreate(
             testIdsGenerator.testCommandId("Decimal-bounds-negative"),
             alice,
             templateIds.decimalRounding,
-            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("-10000000000000000000000000000.0000000000".asDecimal)))),
+            Record(fields = List(RecordField(value = Some(alice.asParty)), RecordField(value = Some("-10000000000000000000000000000.0000000000".asNumeric)))),
             Code.INVALID_ARGUMENT,
-            "Could not read Decimal string"
+            s"Out-of-bounds (Numeric 10)"
           )
         } yield {
           succeed
@@ -620,10 +620,11 @@ abstract class CommandTransactionChecks
           _.commands.ledgerId := context.ledgerId.unwrap
         )
 
-      "process valid commands successfully" in allFixtures { c =>
-        val cmdId = testIdsGenerator.testCommandId("valid-create-and-exercise-cmd")
+      def successfulCommands(c: LedgerContext, workflowId: String) = {
+        val cmdId = testIdsGenerator.testCommandId(s"valid-create-and-exercise-cmd-${UUID.randomUUID()}")
         val request = newRequest(c, validCreateAndExercise)
           .update(_.commands.commandId := cmdId)
+          .update(_.commands.workflowId := workflowId)
 
         for {
           GetLedgerEndResponse(Some(currentEnd)) <- c.transactionClient.getLedgerEnd
@@ -655,6 +656,15 @@ abstract class CommandTransactionChecks
           exercisedEvent.contractId shouldBe createdEvent.contractId
           exercisedEvent.consuming shouldBe true
         }
+
+      }
+
+      "process valid commands with workflow ids successfully" in allFixtures { c =>
+        successfulCommands(c, workflowId = UUID.randomUUID().toString)
+      }
+
+      "process valid commands with empty workflow ids successfully" in allFixtures { c =>
+        successfulCommands(c, workflowId = "")
       }
 
       "fail for invalid create arguments" in allFixtures { implicit c =>

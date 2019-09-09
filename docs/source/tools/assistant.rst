@@ -1,4 +1,4 @@
-.. Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. Copyright (c) 2019 The DAML Authors. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
 DAML Assistant (``daml``)
@@ -18,9 +18,13 @@ DAML Assistant (``daml``)
 
   - Launch :doc:`DAML Studio </daml/daml-studio>`: ``daml studio``
   - Launch :doc:`Sandbox </tools/sandbox>` and :doc:`Navigator </tools/navigator/index>` together: ``daml start``
+    You can additionally start the HTTP JSON API by passing ``--json-api-port 7575`` to ``daml start``.
   - Launch Sandbox: ``daml sandbox``
   - Launch Navigator: ``daml navigator``
   - Launch :doc:`Extractor </tools/extractor>`: ``daml extractor``
+  - Launch the HTTP JSON API: ``daml json-api``
+    You can find more information in the
+    `README <https://github.com/digital-asset/daml/blob/master/ledger-service/http-json/README.md>`_.
 
 - Install new SDK versions manually: ``daml install <version>``
 
@@ -82,7 +86,7 @@ The existence of a ``daml.yaml`` file is what tells ``daml`` that this directory
 
     sdk-version: __VERSION__
     name: __PROJECT_NAME__
-    source: daml/Main.daml
+    source: daml
     scenario: Main:setup
     parties:
       - Alice
@@ -106,7 +110,7 @@ Here is what each field means:
 
    The assistant will warn you when it is time to update this setting (see the ``update-check`` setting in the global config  to control how often it checks, or to disable this check entirely).
 - ``name``: the name of the project. This determines the filename of the ``.dar`` file compiled by ``daml build``.
-- ``source``: the location of your main DAML source code file, relative to the project root.
+- ``source``: the root folder of your DAML source code files relative to the project root.
 - ``scenario``: the name of the scenario to run when using ``daml start``.
 - ``parties``: the parties to display in the Navigator when using ``daml start``.
 - ``version``: the project version.

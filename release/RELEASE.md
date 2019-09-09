@@ -31,7 +31,7 @@
       start` using `Ctrl-C`.
    1. Run `daml build`.
    1. In 3 separate terminals (since each command will block) run
-      1. `daml sandbox --port 6865 --scenario Main:setup .daml/dist/quickstart.dar`.
+      1. `daml sandbox --port 6865 --scenario Main:setup .daml/dist/quickstart-0.0.1.dar`.
       1. `daml navigator server localhost 6865 --port 7500`
       1. `mvn compile exec:java@run-quickstart`
    1. Point your browser to `http://localhost:7500`, 
@@ -82,4 +82,9 @@
    for all releases since the last public release, convert them to
    markdown and insert them in the textbox, then uncheck the `This is
    a pre-release` checkbox at the bottom.
+1. Leave a comment like "All manual tests have passed" on the release PR on
+   GitHub.
 1. Finally, announce the release in the relevant Slack channels.
+1. Documentation is published automatically once you make the release
+   public on Github but you might have to wait up to an hour for the
+   job to run.

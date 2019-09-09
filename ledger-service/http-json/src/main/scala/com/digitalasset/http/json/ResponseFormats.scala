@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.http.json
@@ -8,14 +8,17 @@ import spray.json._
 import spray.json.DefaultJsonProtocol._
 
 private[http] object ResponseFormats {
-  def errorsJsObject(status: StatusCode)(es: String*): JsObject = {
+  def errorsJsObject(status: StatusCode, es: String*): JsObject = {
     val errors = es.toJson
     JsObject(statusField(status), ("errors", errors))
   }
 
   def resultJsObject[A: JsonWriter](a: A): JsObject = {
-    val result: JsValue = a.toJson
-    JsObject(statusField(StatusCodes.OK), ("result", result))
+    resultJsObject(a.toJson)
+  }
+
+  def resultJsObject(a: JsValue): JsObject = {
+    JsObject(statusField(StatusCodes.OK), ("result", a))
   }
 
   def statusField(status: StatusCode): (String, JsNumber) =

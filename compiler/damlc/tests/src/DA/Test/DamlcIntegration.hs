@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE MultiWayIf #-}
@@ -33,6 +33,7 @@ import qualified DA.Daml.Compiler.Scenario as SS
 import qualified DA.Service.Logger.Impl.Pure as Logger
 import qualified Development.IDE.Types.Logger as IdeLogger
 import Development.IDE.Types.Location
+import Development.IDE.Types.Options(IdeReportProgress(..))
 import qualified Data.Aeson as A
 import qualified Data.Aeson.Lens as A
 import           Data.ByteString.Lazy.Char8 (unpack)
@@ -69,7 +70,7 @@ import qualified Test.Tasty.HUnit as HUnit
 import Test.Tasty.HUnit ((@?=))
 import Test.Tasty.Options
 import Test.Tasty.Providers
-import Test.Tasty.Runners
+import Test.Tasty.Runners (Outcome(..), Result(..))
 
 -- Newtype to avoid mixing up the loging function and the one for registering TODOs.
 newtype TODO = TODO String
@@ -134,7 +135,7 @@ getIntegrationTests registerTODO scenarioService version = do
     damlEnv <- mkDamlEnv opts (Just scenarioService)
     pure $
       withResource
-      (initialise (mainRule opts) (const $ pure ()) IdeLogger.noLogging damlEnv (toCompileOpts opts) vfs)
+      (initialise (mainRule opts) (const $ pure ()) IdeLogger.noLogging damlEnv (toCompileOpts opts (IdeReportProgress False)) vfs)
       shutdown $ \service ->
       withTestArguments $ \args -> testGroup ("Tests for DAML-LF " ++ renderPretty version) $
         map (testCase args version service outdir registerTODO) allTestFiles
@@ -275,6 +276,7 @@ readFileAnns file = do
             ("UNTIL-LF", x) -> Just $ UntilLF $ fromJust $ LF.parseVersion $ trim x
             ("ERROR",x) -> Just (DiagnosticFields (DSeverity DsError : parseFields x))
             ("WARN",x) -> Just (DiagnosticFields (DSeverity DsWarning : parseFields x))
+            ("INFO",x) -> Just (DiagnosticFields (DSeverity DsInfo : parseFields x))
             ("QUERY-LF", x) -> Just $ QueryLF x
             ("TODO",x) -> Just $ Todo x
             _ -> error $ "Can't understand test annotation in " ++ show file ++ ", got " ++ show x

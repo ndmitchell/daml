@@ -1,61 +1,115 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 module DA.Daml.LF.Reader
-    ( Manifest(..)
-    , ManifestData(..)
-    , manifestFromDar
-    , multiLineContent
+    ( parseManifestFile
+    , readManifest
+    , manifestPath
+    , DalfManifest(..)
+    , Dalfs(..)
+    , readDalfManifest
+    , readDalfs
     ) where
 
-import Codec.Archive.Zip
+import "zip-archive" Codec.Archive.Zip
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.UTF8 as BSUTF8
 import qualified Data.ByteString.Lazy as BSL
-import qualified Data.ByteString.Lazy.UTF8 as UTF8
-import qualified Data.HashMap.Strict as Map
-import Data.List.Extra
-import System.FilePath
 import Data.Char
+import Data.List.Extra
+import Data.Void
+import Text.Megaparsec
+import Text.Megaparsec.Byte
 
-data Manifest = Manifest
-    { mainDalf :: FilePath
-    , dalfs :: [FilePath]
+type Parser = Parsec Void ByteString
+
+parseManifestFile :: ByteString -> Either String [(ByteString, ByteString)]
+parseManifestFile bs = case parse manifestParser "MANIFEST.MF" bs of
+    Left errBundle -> Left $ errorBundlePretty errBundle
+    Right r -> Right r
+
+readManifest :: Archive -> Either String [(ByteString, ByteString)]
+readManifest dar = do
+    entry <- getEntry dar manifestPath
+    parseManifestFile $ BSL.toStrict entry
+
+manifestPath :: FilePath
+manifestPath = "META-INF/MANIFEST.MF"
+
+-- | We try to be fairly lenient in our parser, e.g., we do not enforce that
+-- lines abide to the 72 byte limit.
+--
+-- See
+-- https://docs.oracle.com/javase/7/docs/technotes/guides/jar/jar.html#JAR_Manifest
+-- for a description of the format.
+manifestParser :: Parser [(ByteString, ByteString)]
+manifestParser = do
+    xs <- many manifestHeaderParser
+    _ <- many eol
+    pure xs
+
+manifestHeaderParser :: Parser (ByteString, ByteString)
+manifestHeaderParser = do
+    name <- nameParser
+    _ <- chunk ": "
+    value <- valueParser
+    pure (name, value)
+
+nameParser :: Parser ByteString
+nameParser = do
+    x <- alphaNumChar
+    xs <- takeWhileP Nothing isHeaderChar
+    pure $! BS.cons x xs
+    where isHeaderChar x =
+              -- isAlphaNum will also match non-ASCII chars but since we get it by applying chr
+              -- to a single byte that is not an issue.
+              let xChr = chr $ fromIntegral x in isAlphaNum xChr || xChr == '-' || xChr == '_'
+
+valueParser :: Parser ByteString
+valueParser = do
+     xs <- takeWhileP Nothing isOtherChar
+     _ <- eol
+     xss <- many continuation
+     pure $! BS.concat (xs : xss)
+  where isOtherChar x = x `notElem` [fromIntegral $ ord x | x <- ['\n', '\r', '\0']]
+        continuation = do
+            _ <- char $ fromIntegral $ ord ' '
+            xs <- takeWhileP Nothing isOtherChar
+            _ <- eol
+            pure xs
+
+-- | The entries from the MANIFEST.MF file relating to .dalf files.
+data DalfManifest = DalfManifest
+    { mainDalfPath :: FilePath
+    , dalfPaths :: [FilePath]
+    -- ^ Includes the mainDalf.
     } deriving (Show)
 
-data ManifestData = ManifestData
-    { mainDalfContent :: BSL.ByteString
-    , dalfsContent :: [BSL.ByteString]
+-- | The dalfs stored in the DAR.
+data Dalfs = Dalfs
+    { mainDalf :: BSL.ByteString
+    , dalfs :: [BSL.ByteString]
+    -- ^ Excludes the mainDalf.
     } deriving (Show)
 
-lineToKeyValue :: String -> (String, String)
-lineToKeyValue line = case splitOn ":" line of
-    [l, r] -> (trim l , trim r)
-    _ -> error $ "Expected two fields in line " <> line
+readDalfManifest :: Archive -> Either String DalfManifest
+readDalfManifest dar = do
+    attrs <- readManifest dar
+    mainDalf <- maybe (Left "No Main-Dalf attribute in manifest") pure $ lookup "Main-Dalf" attrs
+    let mainDalfPath = BSUTF8.toString mainDalf
+    dalfsValue <- maybe (Left "No Dalfs attribute in manifest") pure $ lookup "Dalfs" attrs
+    let dalfPaths = splitOn ", " $ BSUTF8.toString dalfsValue
+    pure $ DalfManifest mainDalfPath dalfPaths
 
-multiLineContent :: [String] -> [String]
-multiLineContent [] = []
-multiLineContent (x:xs)
-  | all isSpace x = multiLineContent xs
-  | otherwise = (x ++ concatMap trim ys) : multiLineContent zs
-    where
-      (ys, zs) = span (isPrefixOf " ") xs
+readDalfs :: Archive -> Either String Dalfs
+readDalfs dar = do
+    DalfManifest{..} <- readDalfManifest dar
+    mainDalf <- getEntry dar mainDalfPath
+    dalfs <- mapM (getEntry dar) (delete mainDalfPath dalfPaths)
+    pure $ Dalfs mainDalf dalfs
 
-manifestMapToManifest :: Map.HashMap String String -> Manifest
-manifestMapToManifest hash = Manifest mainDalf dependDalfs
-    where
-        mainDalf = Map.lookupDefault "unknown" "Main-Dalf" hash
-        dependDalfs = map trim $ delete mainDalf (splitOn "," (Map.lookupDefault "unknown" "Dalfs" hash))
-
-manifestDataFromDar :: Archive -> Manifest -> ManifestData
-manifestDataFromDar archive manifest = ManifestData manifestDalfByte dependencyDalfBytes
-    where
-        manifestDalfByte = head [fromEntry e | e <- zEntries archive, ".dalf" `isExtensionOf` eRelativePath e  && eRelativePath e  == mainDalf manifest]
-        dependencyDalfBytes = [fromEntry e | e <- zEntries archive, ".dalf" `isExtensionOf` eRelativePath e  && elem (trim (eRelativePath e))  (dalfs manifest)]
-
-manifestFromDar :: Archive -> ManifestData
-manifestFromDar dar = manifestDataFromDar dar manifest
-    where
-        manifestEntry = head [fromEntry e | e <- zEntries dar, ".MF" `isExtensionOf` eRelativePath e]
-        linesStr = lines $ UTF8.toString manifestEntry
-        manifestLines = multiLineContent (filter (not . null) linesStr)
-        manifest = manifestMapToManifest $ Map.fromList $ map lineToKeyValue manifestLines
-
+getEntry :: Archive -> FilePath -> Either String BSL.ByteString
+getEntry dar path = case findEntryByPath path dar of
+    Nothing -> Left $ "Could not find " <> path <> " in DAR"
+    Just entry -> Right $ fromEntry entry

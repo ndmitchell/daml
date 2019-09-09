@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client.binding.encoding
@@ -74,7 +74,7 @@ object EqualityEncoding extends EqualityEncoding {
   class primitiveImpl extends ValuePrimitiveEncoding[Fn] {
     override def valueInt64: Fn[P.Int64] = (a1, a2) => a1 == a2
 
-    override def valueDecimal: Fn[P.Decimal] = (a1, a2) => a1 == a2
+    override def valueNumeric: Fn[P.Numeric] = (a1, a2) => a1 == a2
 
     override def valueParty: Fn[P.Party] = (a1, a2) => a1 == a2
 

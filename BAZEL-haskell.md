@@ -31,18 +31,18 @@ This loads the contents of the files `http.bzl` and `git.bzl` from the external 
 Straight after the loading of those rules, `deps.bzl` reads,
 ```
 http_archive(
-  name = "io_tweag_rules_haskell",
+  name = "rules_haskell",
   strip_prefix = 'rules_haskell-%s' % rules_haskell_version,
   urls = ["https://github.com/tweag/rules_haskell/archive/%s.tar.gz" % rules_haskell_version],
 )
 ```
-This defines the workspace [`io_tweag_rules_haskell`](https://github.com/tweag/rules_haskell) (we call this "`rules_haskell`" informally - in short, build rules for Haskell) as an external workspace that is downloaded via http. From here on we can refer to things in that workspace by prefixing them with `@io_tweag_rules_haskell` as in the next command from `WORKSPACE`,
+This defines the workspace [`rules_haskell`](https://github.com/tweag/rules_haskell) (we call this "`rules_haskell`" informally - in short, build rules for Haskell) as an external workspace that is downloaded via http. From here on we can refer to things in that workspace by prefixing them with `@rules_haskell` as in the next command from `WORKSPACE`,
 ```
-load("@io_tweag_rules_haskell//haskell:repositories.bzl", "haskell_repositories")
+load("@rules_haskell//haskell:repositories.bzl", "rules_haskell_dependencies")
 ```
-which has the effect of making the macro `haskell_repositories` available in the environment which provides "all repositories necessary for `rules_haskell` to function":
+which has the effect of making the macro `rules_haskell_dependencies` available in the environment which provides "all repositories necessary for `rules_haskell` to function":
 ```
-haskell_repositories()
+rules_haskell_dependencies()
 ```
 As mentioned earlier, targets of any `BUILD.bazel` file in a package are visible within `WORKSPACE`. In fact, its a rule that [toolchains](https://docs.bazel.build/versions/master/toolchains.html#defining-toolchains) can only be defined in `BUILD.bazel` files and registered in `WORKSPACE` files. [`register_toolchains`](https://docs.Bazel.build/versions/master/skylark/lib/globals.html#register_toolchains) registers a toolchain created with the `toolchain` rule so that it is available for toolchain resolution.
 ```
@@ -104,14 +104,13 @@ nixpkgs_package(
 )
 ```
 
-We see in the last macro invocation, forward reference to the [`ai_formation_hazel`]("https://github.com/DACH-NY/hazel) workspace. Here's its definition:
+We see in the last macro invocation, forward reference to the [`ai_formation_hazel`](https://github.com/tweag/rules_haskell/tree/master/hazel) workspace. Here's its definition:
 ```
 http_archive(
-  name = "ai_formation_hazel",
-  strip_prefix = "hazel-{}".format(hazel_version),
-#  XXX: Switch to upstream once necessary changes are merged.
-#  urls = ["https://github.com/formationai/hazel/archive/{}.tar.gz".format(hazel_version)],
-  urls = ["https://github.com/DACH-NY/hazel/archive/{}.tar.gz".format(hazel_version)],
+    name = "ai_formation_hazel",
+    strip_prefix = "rules_haskell-{}/hazel".format(rules_haskell_version),
+    urls = ["https://github.com/tweag/rules_haskell/archive/%s.tar.gz" % rules_haskell_version],
+    sha256 = rules_haskell_sha256,
 )
 ```
 Hazel is a Bazel framework of build rules for third-party Haskell dependencies - it autogenerates Bazel rules from Cabal files. From the `@ai_formation_hazel` workspace we load
@@ -127,7 +126,7 @@ and from there we the DAML `//bazel_tools` project the `add_extra_packages` macr
 load("//bazel_tools:haskell.bzl", "add_extra_packages")
 ```
 
-The [`hazel_repositories`](https://github.com/DACH-NY/hazel#using-hazel-in-build-rules) macro creates a separate external dependency for each package. It downloads Cabal tarballs from Hackage and constructs build rules for compiling the components of each such package:
+The [`hazel_repositories`](https://github.com/tweag/rules_haskell/tree/master/hazel#using-hazel-in-build-rules) macro creates a separate external dependency for each package. It downloads Cabal tarballs from Hackage and constructs build rules for compiling the components of each such package:
 ```
 hazel_repositories(
   core_packages = core_packages (...),
@@ -159,10 +158,10 @@ sets the default visibility property globally for our targets as `public`. This 
 
 The `load` statments
 ```
-load("@io_tweag_rules_haskell//haskell:haskell.bzl",
+load("@rules_haskell//haskell:defs.bzl",
   "haskell_toolchain", "haskell_toolchain_library",
 )
-load("@io_tweag_rules_haskell//haskell:c2hs.bzl",
+load("@rules_haskell//haskell:c2hs.bzl",
   "c2hs_toolchain",
 )
 ```
@@ -187,6 +186,6 @@ alias(
 
 ## Further reading:
 
-- ["Bazel User Guide"](https://github.com/DACH-NY/da/blob/master/BAZEL.md) (DAML specific)
+- ["Bazel User Guide"](https://github.com/digital-asset/daml/blob/master/BAZEL.md) (DAML specific)
 - ["A Users's Guide to Bazel"](https://docs.bazel.build/versions/master/guide.html) (official documentation)
 - [`rules_haskell` documentation](https://api.haskell.build/index.html) (core Haskell rules, Haddock support, Linting, Defining toolchains, Support for protocol buffers, Interop with `cc_*` rules, Workspace rules)

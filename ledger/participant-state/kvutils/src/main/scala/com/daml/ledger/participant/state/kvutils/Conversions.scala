@@ -1,21 +1,22 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.participant.state.kvutils
 
 import java.time.{Duration, Instant}
 
+import com.daml.ledger.participant.state.backport.TimeModel
 import com.daml.ledger.participant.state.kvutils.DamlKvutils._
-import com.daml.ledger.participant.state.v1.{Configuration, SubmittedTransaction, SubmitterInfo}
+import com.daml.ledger.participant.state.v1.{
+  Configuration,
+  PackageId,
+  SubmittedTransaction,
+  SubmitterInfo
+}
 import com.digitalasset.daml.lf.data.Ref.{ContractIdString, LedgerString, Party}
 import com.digitalasset.daml.lf.data.Time
 import com.digitalasset.daml.lf.transaction.Node.GlobalKey
-import com.digitalasset.daml.lf.transaction.{
-  Transaction,
-  TransactionOuterClass,
-  TransactionVersions,
-  VersionedTransaction
-}
+import com.digitalasset.daml.lf.transaction._
 import com.digitalasset.daml.lf.value.Value.{
   AbsoluteContractId,
   ContractId,
@@ -24,19 +25,25 @@ import com.digitalasset.daml.lf.value.Value.{
   VersionedValue
 }
 import com.digitalasset.daml.lf.value.ValueCoder.DecodeError
-import com.digitalasset.daml.lf.value.ValueOuterClass
-import com.digitalasset.daml.lf.transaction.TransactionCoder
-import com.digitalasset.daml.lf.value.ValueCoder
-import com.daml.ledger.participant.state.backport.TimeModel
+import com.digitalasset.daml.lf.value.{Value, ValueCoder, ValueOuterClass}
 import com.google.common.io.BaseEncoding
-import com.google.protobuf.ByteString
+import com.google.protobuf.{ByteString, Empty}
 
-import scala.util.Try
+import scala.util.{Failure, Success, Try}
 
 /** Internal utilities for converting between protobuf messages and our scala
   * data structures.
   */
 private[kvutils] object Conversions {
+
+  val configurationStateKey: DamlStateKey =
+    DamlStateKey.newBuilder.setConfiguration(Empty.getDefaultInstance).build
+
+  def partyStateKey(party: String): DamlStateKey =
+    DamlStateKey.newBuilder.setParty(party).build
+
+  def packageStateKey(packageId: PackageId): DamlStateKey =
+    DamlStateKey.newBuilder.setPackageId(packageId).build
 
   def toAbsCoid(txId: DamlLogEntryId, coid: ContractId): AbsoluteContractId = {
     val hexTxId =
@@ -56,7 +63,8 @@ private[kvutils] object Conversions {
         DamlLogEntryId.newBuilder
           .setEntryId(ByteString.copyFrom(BaseEncoding.base16.decode(hexTxId)))
           .build -> nodeId.toInt
-      case _ => sys.error(s"decodeAbsoluteContractId: Cannot decode '$acoid'")
+      case _ =>
+        throw Err.DecodeError("AbsoluteContractIdToLogEntryId", s"Cannot parse '${acoid.coid}'")
     }
 
   def absoluteContractIdToStateKey(acoid: AbsoluteContractId): DamlStateKey =
@@ -73,7 +81,8 @@ private[kvutils] object Conversions {
               .build
           )
           .build
-      case _ => sys.error(s"decodeAbsoluteContractId: Cannot decode '$acoid'")
+      case _ =>
+        throw Err.DecodeError("AbsoluteContractIdToStakeKey", s"Cannot parse '${acoid.coid}'")
     }
 
   def relativeContractIdToStateKey(
@@ -96,20 +105,18 @@ private[kvutils] object Conversions {
   }
 
   def stateKeyToContractId(key: DamlStateKey): AbsoluteContractId = {
-    // FIXME(JM): Graceful error handling
     decodeContractId(key.getContractId)
   }
 
   def encodeContractKey(key: GlobalKey): DamlContractKey = {
     val encodedValue = valEncoder(key.key)
-      .getOrElse(sys.error(s"contractKeyToStateKey: Cannot encode ${key.key}!"))
+      .getOrElse(throw Err.InternalError(s"contractKeyToStateKey: Cannot encode ${key.key}!"))
       ._2
 
     DamlContractKey.newBuilder
       .setTemplateId(ValueCoder.encodeIdentifier(key.templateId))
       .setKey(encodedValue)
       .build
-
   }
 
   def decodeContractKey(key: DamlContractKey): GlobalKey = {
@@ -117,10 +124,17 @@ private[kvutils] object Conversions {
       ValueCoder
         .decodeIdentifier(key.getTemplateId)
         .getOrElse(
-          sys.error(s"decodeContractKey: Cannot decode template id!")
+          throw Err
+            .DecodeError("ContractKey", s"Cannot decode template id: ${key.getTemplateId}")
         ),
       forceAbsoluteContractIds(
-        valDecoder(key.getKey).getOrElse(sys.error("decodeContractKey: Cannot decode key!")))
+        valDecoder(key.getKey)
+          .fold(
+            err =>
+              throw Err
+                .DecodeError("ContractKey", "Cannot decode key: $err"),
+            identity)
+      )
     )
   }
 
@@ -158,16 +172,50 @@ private[kvutils] object Conversions {
       maxRecordTime = parseTimestamp(subInfo.getMaximumRecordTime)
     )
 
-  def parseDamlConfigurationEntry(config: DamlConfigurationEntry): Configuration = {
-    val tm = config.getTimeModel
-    Configuration(
-      TimeModel(
+  def buildDamlConfiguration(config: Configuration): DamlConfiguration = {
+    val tm = config.timeModel
+    DamlConfiguration.newBuilder
+      .setGeneration(config.generation)
+      .setAuthorizedParticipantId(config.authorizedParticipantId.fold("")(identity))
+      .setOpenWorld(config.openWorld)
+      .setTimeModel(
+        DamlTimeModel.newBuilder
+          .setMaxClockSkew(buildDuration(tm.maxClockSkew))
+          .setMinTransactionLatency(buildDuration(tm.minTransactionLatency))
+          .setMaxTtl(buildDuration(tm.maxTtl))
+      )
+      .build
+  }
+
+  def parseDamlConfiguration(config: DamlConfiguration): Try[Configuration] =
+    for {
+      tm <- if (config.hasTimeModel)
+        Success(config.getTimeModel)
+      else
+        Failure(Err.DecodeError("Configuration", "No time model"))
+      parsedTM <- TimeModel(
         maxClockSkew = parseDuration(tm.getMaxClockSkew),
         minTransactionLatency = parseDuration(tm.getMinTransactionLatency),
         maxTtl = parseDuration(tm.getMaxTtl)
-      ).get // FIXME(JM): handle error
-    )
-  }
+      )
+      authPidString = config.getAuthorizedParticipantId
+      authPid <- if (authPidString.isEmpty)
+        Success(None)
+      else
+        LedgerString
+          .fromString(config.getAuthorizedParticipantId)
+          .fold(
+            err => Failure(Err.DecodeError("Configuration", err)),
+            ls => Success(Some(ls))
+          )
+
+      parsedConfig = Configuration(
+        generation = config.getGeneration,
+        timeModel = parsedTM,
+        authorizedParticipantId = authPid,
+        openWorld = config.getOpenWorld
+      )
+    } yield parsedConfig
 
   def buildTimestamp(ts: Time.Timestamp): com.google.protobuf.Timestamp = {
     val instant = ts.toInstant
@@ -197,7 +245,7 @@ private[kvutils] object Conversions {
         nidEncoder,
         cidEncoder,
         VersionedTransaction(TransactionVersions.assignVersion(tx), tx))
-      .fold(err => sys.error(s"encodeTransaction error: $err"), identity)
+      .fold(err => throw Err.EncodeError("Transaction", err.errorMessage), identity)
   }
 
   def decodeTransaction(tx: TransactionOuterClass.Transaction): SubmittedTransaction = {
@@ -207,15 +255,49 @@ private[kvutils] object Conversions {
         cidDecoder,
         tx
       )
-      .fold(err => sys.error(s"decodeTransaction error: $err"), _.transaction)
+      .fold(err => throw Err.DecodeError("Transaction", err.errorMessage), _.transaction)
   }
+
+  def decodeContractInstance(coinst: TransactionOuterClass.ContractInstance)
+    : Value.ContractInst[VersionedValue[AbsoluteContractId]] =
+    TransactionCoder
+      .decodeContractInstance(absValDecoder, coinst)
+      .fold(
+        err => throw Err.DecodeError("ContractInstance", err.errorMessage),
+        coinst => coinst.mapValue(forceAbsoluteContractIds))
+
+  def encodeContractInstance(coinst: Value.ContractInst[VersionedValue[AbsoluteContractId]])
+    : TransactionOuterClass.ContractInstance =
+    TransactionCoder
+      .encodeContractInstance(absValEncoder, coinst)
+      .fold(err => throw Err.InternalError(s"encodeContractInstance failed: $err"), identity)
 
   def forceAbsoluteContractIds(v: VersionedValue[ContractId]): VersionedValue[AbsoluteContractId] =
     v.mapContractId {
       case _: RelativeContractId =>
-        sys.error("Relative contract identifier encountered in contract key!")
+        throw Err.InternalError("Relative contract identifier encountered in contract key!")
       case acoid: AbsoluteContractId => acoid
     }
+
+  def contractIdStructOrStringToStateKey(
+      entryId: DamlLogEntryId,
+      coidString: String,
+      coidStruct: ValueOuterClass.ContractId): DamlStateKey = {
+    val result =
+      if (coidString.isEmpty)
+        cidDecoder.fromStruct(coidStruct.getContractId, coidStruct.getRelative)
+      else
+        cidDecoder.fromString(coidString)
+
+    result match {
+      case Left(err) =>
+        throw Err.DecodeError("ContractId", s"Cannot decode contract id: $err")
+      case Right(rcoid: RelativeContractId) =>
+        relativeContractIdToStateKey(entryId, rcoid)
+      case Right(acoid: AbsoluteContractId) =>
+        absoluteContractIdToStateKey(acoid)
+    }
+  }
 
   // FIXME(JM): Should we have a well-defined schema for this?
   private val cidEncoder: ValueCoder.EncodeCid[ContractId] = {
@@ -223,24 +305,52 @@ private[kvutils] object Conversions {
       case RelativeContractId(nid) => (s"~${nid.index}", true)
       case AbsoluteContractId(coid) => (s"$coid", false)
     }
+
     ValueCoder.EncodeCid(asStruct(_)._1, asStruct)
   }
-  private val cidDecoder: ValueCoder.DecodeCid[ContractId] = {
+  val cidDecoder: ValueCoder.DecodeCid[ContractId] = {
     def fromString(x: String): Either[DecodeError, ContractId] = {
-      if (x.startsWith("~"))
+      if (x.startsWith("~")) {
         Try(x.tail.toInt).toOption match {
           case None =>
             Left(DecodeError(s"Invalid relative contract id: $x"))
           case Some(i) =>
             Right(RelativeContractId(NodeId.unsafeFromIndex(i)))
-        } else
+        }
+      } else {
         ContractIdString
           .fromString(x)
           .left
           .map(e => DecodeError(s"Invalid absolute contract id: $e"))
           .map(AbsoluteContractId)
+      }
     }
 
+    ValueCoder.DecodeCid(
+      fromString, {
+        case (i, rel) =>
+          val coid = fromString(i)
+          assert(coid.isLeft || rel == coid.right.get.isInstanceOf[RelativeContractId])
+          coid
+      }
+    )
+  }
+
+  private val absCidEncoder: ValueCoder.EncodeCid[AbsoluteContractId] = {
+    val asStruct: AbsoluteContractId => (String, Boolean) =
+      coid => (coid.coid.toString, false)
+
+    ValueCoder.EncodeCid(asStruct(_)._1, asStruct)
+  }
+
+  private val absCidDecoder: ValueCoder.DecodeCid[AbsoluteContractId] = {
+    def fromString(x: String): Either[DecodeError, AbsoluteContractId] = {
+      ContractIdString
+        .fromString(x)
+        .left
+        .map(e => DecodeError(s"Invalid absolute contract id: $e"))
+        .map(AbsoluteContractId)
+    }
     ValueCoder.DecodeCid(
       fromString,
       { case (i, _) => fromString(i) }
@@ -257,5 +367,13 @@ private[kvutils] object Conversions {
     ValueCoder.DecodeError,
     Transaction.Value[ContractId]] =
     a => ValueCoder.decodeVersionedValue(cidDecoder, a)
+
+  private val absValEncoder: TransactionCoder.EncodeVal[Transaction.Value[AbsoluteContractId]] =
+    a => ValueCoder.encodeVersionedValueWithCustomVersion(absCidEncoder, a).map((a.version, _))
+
+  private val absValDecoder: ValueOuterClass.VersionedValue => Either[
+    ValueCoder.DecodeError,
+    Transaction.Value[AbsoluteContractId]] =
+    a => ValueCoder.decodeVersionedValue(absCidDecoder, a)
 
 }

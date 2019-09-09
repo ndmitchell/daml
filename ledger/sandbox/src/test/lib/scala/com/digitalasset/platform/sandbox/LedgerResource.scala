@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.sandbox
@@ -64,7 +64,7 @@ object LedgerResource {
 
         ledger = LedgerResource.resource(
           () =>
-            Ledger.postgres(
+            Ledger.jdbcBacked(
               postgres.value.jdbcUrl,
               ledgerId,
               timeProvider,

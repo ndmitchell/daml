@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.participant.state.backport
@@ -21,10 +21,10 @@ import scala.util.Try
   *                              Must be greater than the derived minimum time to live.
   * @throws IllegalArgumentException if the parameters aren't valid
   */
-class TimeModel private (
-    val minTransactionLatency: Duration,
-    val maxClockSkew: Duration,
-    val maxTtl: Duration)
+case class TimeModel private (
+    minTransactionLatency: Duration,
+    maxClockSkew: Duration,
+    maxTtl: Duration)
     extends ITimeModel {
 
   /**

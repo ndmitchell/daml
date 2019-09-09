@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.tests.integration.ledger.api
@@ -18,8 +18,8 @@ import scala.concurrent.{Future, Promise}
 class ReflectionIT
     extends AsyncWordSpec
     with Matchers
-    with MultiLedgerFixture
     with AkkaBeforeAndAfterAll
+    with MultiLedgerFixture
     with SuiteResourceManagementAroundAll {
   override protected def config: Config = Config.default
 

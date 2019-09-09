@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.service
@@ -6,9 +6,9 @@ package com.digitalasset.ledger.service
 import java.io.File
 import java.nio.file.Files
 
-import com.digitalasset.daml.lf.data.Ref.PackageId
+import com.digitalasset.daml.lf.data.Ref.{PackageId, Identifier}
 import com.digitalasset.daml.lf.iface.reader.InterfaceReader
-import com.digitalasset.daml.lf.iface.Interface
+import com.digitalasset.daml.lf.iface.{Interface, DefDataType}
 import com.digitalasset.daml.lf.archive.Reader
 import com.digitalasset.daml_lf.DamlLf
 import com.digitalasset.daml_lf.DamlLf.Archive
@@ -58,10 +58,16 @@ object LedgerReader {
     \/.fromTryCatchNonFatal {
       val cos = Reader.damlLfCodedInputStream(archivePayload.newInput)
       val payload = DamlLf.ArchivePayload.parseFrom(cos)
-      val (errors, out) = InterfaceReader.readInterface(() =>
-        \/-((PackageId.assertFromString(hash), payload.getDamlLf1)))
+      val (errors, out) =
+        InterfaceReader.readInterface(PackageId.assertFromString(hash) -> payload)
       if (!errors.empty) \/.left("Errors reading LF archive:\n" + errors.toString)
       else \/.right(out)
     }.leftMap(_.getLocalizedMessage).join
   }
+
+  def damlLfTypeLookup(packageStore: PackageStore)(id: Identifier): Option[DefDataType.FWT] =
+    for {
+      iface <- packageStore.get(id.packageId.toString)
+      ifaceType <- iface.typeDecls.get(id.qualifiedName)
+    } yield ifaceType.`type`
 }

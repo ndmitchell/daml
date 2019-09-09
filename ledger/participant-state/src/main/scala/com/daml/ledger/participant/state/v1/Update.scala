@@ -1,11 +1,10 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger
 package participant.state.v1
 
 import com.digitalasset.daml.lf.data.Time.Timestamp
-import com.digitalasset.daml.lf.value.Value
 import com.digitalasset.daml_lf.DamlLf
 
 /** An update to the (abstract) participant state.
@@ -31,9 +30,19 @@ object Update {
   }
 
   /** Signal that the current [[Configuration]] has changed. */
-  final case class ConfigurationChanged(newConfiguration: Configuration) extends Update {
+  final case class ConfigurationChanged(submissionId: String, newConfiguration: Configuration)
+      extends Update {
     override def description: String =
       s"Configuration changed to: $newConfiguration"
+  }
+
+  /** Signal that a configuration change submitted by this participant was rejected.
+    */
+  final case class ConfigurationChangeRejected(submissionId: String, reason: String)
+      extends Update {
+    override def description: String = {
+      s"Configuration change '$submissionId' was rejected: $reason"
+    }
   }
 
   /** Signal that a party is hosted at a participant.
@@ -106,11 +115,11 @@ object Update {
     *   ledgers to implement a fine-grained privacy model.
     *
     * @param transactionMeta:
-    *   the metadata of the transaction that was provided by the submitter.
+    *   The metadata of the transaction that was provided by the submitter.
     *   It is visible to all parties that can see the transaction.
     *
     * @param transaction:
-    *   the view of the transaction that was accepted. This view must
+    *   The view of the transaction that was accepted. This view must
     *   include at least the projection of the accepted transaction to the
     *   set of all parties hosted at this participant. See
     *   https://docs.daml.com/concepts/ledger-model/ledger-privacy.html
@@ -126,14 +135,8 @@ object Update {
     *   determines how this transaction's recordTime relates to its
     *   [[TransactionMeta.ledgerEffectiveTime]].
     *
-    * @param referencedContracts:
-    *   A list of all contracts that were created before this transaction
-    *   and referenced by it (via fetch, consuming, or non-consuming
-    *   exercise nodes). This list is provided to enable consumers of
-    *   [[ReadService.stateUpdates]] to implement the divulgence semantics
-    *   as described here:
-    *   https://docs.daml.com/concepts/ledger-model/ledger-privacy.html
-    *
+    * @param divulgedContracts:
+    *   List of divulged contracts. See [[DivulgedContract]] for details.
     */
   final case class TransactionAccepted(
       optSubmitterInfo: Option[SubmitterInfo],
@@ -141,7 +144,7 @@ object Update {
       transaction: CommittedTransaction,
       transactionId: TransactionId,
       recordTime: Timestamp,
-      referencedContracts: List[(Value.AbsoluteContractId, AbsoluteContractInst)]
+      divulgedContracts: List[DivulgedContract]
   ) extends Update {
     override def description: String = s"Accept transaction $transactionId"
   }
@@ -159,4 +162,5 @@ object Update {
       s"Reject command ${submitterInfo.commandId}: $reason"
     }
   }
+
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.value
@@ -47,17 +47,18 @@ class ValueCoderSpec extends WordSpec with Matchers with EitherAssertions with P
         // we are filtering on decimals invariant under string conversion
         whenever(Decimal.fromBigDecimal(d).isRight) {
           val Right(dec) = Decimal.fromBigDecimal(d)
-          val value = ValueDecimal(dec)
+          val value = ValueNumeric(dec)
           val recoveredDecimal = ValueCoder.decodeValue[ContractId](
             defaultCidDecode,
             defaultValueVersion,
             assertRight(
               ValueCoder
                 .encodeValue[ContractId](defaultCidEncode, defaultValueVersion, value))) match {
-            case Right(ValueDecimal(d)) => d
-            case _ => fail("should have got a decimal back")
+            case Right(ValueNumeric(d)) => d
+            case x => fail(s"should have got a decimal back, got $x")
           }
-          Decimal.toString(value.value) shouldEqual Decimal.toString(recoveredDecimal)
+          Numeric.toUnscaledString(value.value) shouldEqual Numeric.toUnscaledString(
+            recoveredDecimal)
         }
       }
     }

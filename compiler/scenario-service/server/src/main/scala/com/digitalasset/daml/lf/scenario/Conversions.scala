@@ -1,11 +1,11 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.scenario
 
 import scala.collection.JavaConverters._
 
-import com.digitalasset.daml.lf.data.{Decimal, Ref}
+import com.digitalasset.daml.lf.data.{Numeric, Ref}
 import com.digitalasset.daml.lf.scenario.api.v1
 import com.digitalasset.daml.lf.scenario.api.v1.{List => _, _}
 import com.digitalasset.daml.lf.speedy.SError
@@ -53,9 +53,7 @@ case class Conversions(homePackageId: Ref.PackageId) {
       builder.setCommitLoc(convertLocation(loc))
     }
 
-    machine.lastLocation.foreach { loc =>
-      builder.setLastLoc(convertLocation(loc))
-    }
+    builder.addAllStackTrace(machine.stackTrace().map(convertLocation).toSeq.asJava)
 
     builder.setPartialTransaction(
       convertPartialTransaction(machine.ptx)
@@ -552,6 +550,7 @@ case class Conversions(homePackageId: Ref.PackageId) {
     Location.newBuilder
       .setPackage(convertPackageId(loc.packageId))
       .setModule(loc.module.toString)
+      .setDefinition(loc.definition)
       .setStartLine(sline)
       .setStartCol(scol)
       .setEndLine(eline)
@@ -628,7 +627,7 @@ case class Conversions(homePackageId: Ref.PackageId) {
             .build
         )
       case V.ValueInt64(v) => builder.setInt64(v)
-      case V.ValueDecimal(d) => builder.setDecimal(Decimal.toString(d))
+      case V.ValueNumeric(d) => builder.setDecimal(Numeric.toString(d))
       case V.ValueText(t) => builder.setText(t)
       case V.ValueTimestamp(ts) => builder.setTimestamp(ts.micros)
       case V.ValueDate(d) => builder.setDate(d.days)

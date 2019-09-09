@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE RankNTypes #-}
@@ -90,9 +90,9 @@ typecheckModule
 typecheckModule packageState deps pm =
     fmap (either (, Nothing) (second Just)) $
     runGhcEnv packageState $
-        catchSrcErrors $ do
+        catchSrcErrors "typecheck" $ do
             setupEnv deps
-            (warnings, tcm) <- withWarnings $ \tweak ->
+            (warnings, tcm) <- withWarnings "typecheck" $ \tweak ->
                 GHC.typecheckModule pm{pm_mod_summary = tweak $ pm_mod_summary pm}
             tcm2 <- mkTcModuleResult tcm
             return (warnings, tcm2)
@@ -107,12 +107,12 @@ compileModule
 compileModule packageState deps tmr =
     fmap (either (, Nothing) (second Just)) $
     runGhcEnv packageState $
-        catchSrcErrors $ do
+        catchSrcErrors "compile" $ do
             setupEnv (deps ++ [tmr])
 
             let tm = tmrModule tmr
             session <- getSession
-            (warnings,desugar) <- withWarnings $ \tweak -> do
+            (warnings,desugar) <- withWarnings "compile" $ \tweak -> do
                 let pm = tm_parsed_module tm
                 let pm' = pm{pm_mod_summary = tweak $ pm_mod_summary pm}
                 let tm' = tm{tm_parsed_module  = pm'}
@@ -199,7 +199,7 @@ getImportsParsed dflags (L loc parsed) = do
   let srcImports = filter (ideclSource . GHC.unLoc) $ GHC.hsmodImports parsed
   when (not $ null srcImports) $ Left $
     concat
-      [ diagFromString mloc ("Illegal source import of " <> GHC.moduleNameString (GHC.unLoc $ GHC.ideclName i))
+      [ diagFromString "imports" mloc ("Illegal source import of " <> GHC.moduleNameString (GHC.unLoc $ GHC.ideclName i))
       | L mloc i <- srcImports ]
 
   -- most of these corner cases are also present in https://hackage.haskell.org/package/ghc-8.6.1/docs/src/HeaderInfo.html#getImports
@@ -278,8 +278,7 @@ runCpp dflags filename contents = withTempDir $ \dir -> do
             -- __FILE__ macro is wrong, ignoring that for now (likely not a real issue)
 
             -- Relative includes aren't going to work, so we fix that by adding to the include path.
-            let addSelf (IncludeSpecs quote global) = IncludeSpecs (takeDirectory filename : quote) global
-            dflags <- return dflags{includePaths = addSelf $ includePaths dflags}
+            dflags <- return $ addIncludePathsQuote (takeDirectory filename) dflags
 
             -- Location information is wrong, so we fix that by patching it afterwards.
             let inp = dir </> "___HIE_CORE_MAGIC___"
@@ -323,7 +322,7 @@ parseFileContents preprocessor filename mbContents = do
 
    case unP Parser.parseModule (mkPState dflags contents loc) of
      PFailed _ locErr msgErr ->
-      throwE $ diagFromErrMsg dflags $ mkPlainErrMsg dflags locErr msgErr
+      throwE $ diagFromErrMsg "parser" dflags $ mkPlainErrMsg dflags locErr msgErr
      POk pst rdr_module ->
          let hpm_annotations =
                (Map.fromListWith (++) $ annotations pst,
@@ -342,11 +341,11 @@ parseFileContents preprocessor filename mbContents = do
                -- errors are those from which a parse tree just can't
                -- be produced.
                unless (null errs) $
-                 throwE $ diagFromErrMsgs dflags $ snd $ getMessages pst dflags
+                 throwE $ diagFromErrMsgs "parser" dflags $ snd $ getMessages pst dflags
 
                -- Ok, we got here. It's safe to continue.
                let (errs, parsed) = preprocessor rdr_module
-               unless (null errs) $ throwE $ diagFromStrings errs
+               unless (null errs) $ throwE $ diagFromStrings "parser" errs
                ms <- getModSummaryFromBuffer filename contents dflags parsed
                let pm =
                      ParsedModule {
@@ -355,7 +354,7 @@ parseFileContents preprocessor filename mbContents = do
                        , pm_extra_src_files=[] -- src imports not allowed
                        , pm_annotations = hpm_annotations
                       }
-                   warnings = diagFromErrMsgs dflags warns
+                   warnings = diagFromErrMsgs "parser" dflags warns
                pure (warnings, pm)
 
 
@@ -365,7 +364,7 @@ parsePragmasIntoDynFlags
     => FilePath
     -> SB.StringBuffer
     -> m (Either [FileDiagnostic] DynFlags)
-parsePragmasIntoDynFlags fp contents = catchSrcErrors $ do
+parsePragmasIntoDynFlags fp contents = catchSrcErrors "pragmas" $ do
     dflags0  <- getSessionDynFlags
     let opts = Hdr.getOptions dflags0 contents fp
     (dflags, _, _) <- parseDynamicFilePragma dflags0 opts
@@ -373,12 +372,12 @@ parsePragmasIntoDynFlags fp contents = catchSrcErrors $ do
 
 -- | Run something in a Ghc monad and catch the errors (SourceErrors and
 -- compiler-internal exceptions like Panic or InstallationError).
-catchSrcErrors :: GhcMonad m => m a -> m (Either [FileDiagnostic] a)
-catchSrcErrors ghcM = do
+catchSrcErrors :: GhcMonad m => T.Text -> m a -> m (Either [FileDiagnostic] a)
+catchSrcErrors fromWhere ghcM = do
       dflags <- getDynFlags
       handleGhcException (ghcExceptionToDiagnostics dflags) $
         handleSourceError (sourceErrorToDiagnostics dflags) $
         Right <$> ghcM
     where
-        ghcExceptionToDiagnostics dflags = return . Left . diagFromGhcException dflags
-        sourceErrorToDiagnostics dflags = return . Left . diagFromErrMsgs dflags . srcErrorMessages
+        ghcExceptionToDiagnostics dflags = return . Left . diagFromGhcException fromWhere dflags
+        sourceErrorToDiagnostics dflags = return . Left . diagFromErrMsgs fromWhere dflags . srcErrorMessages

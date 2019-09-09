@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 
@@ -7,6 +7,8 @@ module DA.Daml.LF.Proto3.Archive
   ( decodeArchive
   , encodeArchive
   , encodeArchiveLazy
+  , encodeArchiveAndHash
+  , encodePackageHash
   , ArchiveError(..)
   ) where
 
@@ -22,6 +24,7 @@ import qualified DA.Daml.LF.Proto3.Encode as Encode
 import qualified Data.ByteArray           as BA
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Lazy     as BSL
+import Data.Int
 import qualified Data.Text                as T
 import qualified Data.Text.Lazy           as TL
 import qualified Numeric
@@ -29,7 +32,7 @@ import qualified Proto3.Suite             as Proto
 
 data ArchiveError
     = ProtobufError !String
-    | UnknownHashFunction !Int
+    | UnknownHashFunction !Int32
     | HashMismatch !T.Text !T.Text
   deriving (Eq, Show)
 
@@ -57,7 +60,13 @@ decodeArchive bytes = do
 -- | Encode a LFv1 package payload into a DAML-LF archive using the default
 -- hash function.
 encodeArchiveLazy :: LF.Package -> BSL.ByteString
-encodeArchiveLazy package =
+encodeArchiveLazy = fst . encodeArchiveAndHash
+
+encodePackageHash :: LF.Package -> T.Text
+encodePackageHash = snd . encodeArchiveAndHash
+
+encodeArchiveAndHash :: LF.Package -> (BSL.ByteString, T.Text)
+encodeArchiveAndHash package =
     let payload = BSL.toStrict $ Proto.toLazyByteString $ Encode.encodePayload package
         hash = encodeHash (BA.convert (Crypto.hash @_ @Crypto.SHA256 payload) :: BS.ByteString)
         archive =
@@ -66,7 +75,7 @@ encodeArchiveLazy package =
           , ProtoLF.archiveHash    = TL.fromStrict hash
           , ProtoLF.archiveHashFunction = Proto.Enumerated (Right ProtoLF.HashFunctionSHA256)
           }
-    in Proto.toLazyByteString archive
+    in (Proto.toLazyByteString archive, hash)
 
 encodeArchive :: LF.Package -> BS.ByteString
 encodeArchive = BSL.toStrict . encodeArchiveLazy

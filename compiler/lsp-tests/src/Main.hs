@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE RankNTypes #-}
@@ -14,6 +14,7 @@ import Data.Foldable (toList)
 import Data.List.Extra
 import qualified Data.Text as T
 import Language.Haskell.LSP.Types
+import Language.Haskell.LSP.Types.Capabilities
 import Language.Haskell.LSP.Types.Lens
 import Network.URI
 import System.Environment.Blank
@@ -22,28 +23,32 @@ import System.Info.Extra
 import System.IO.Extra
 import Test.Tasty
 import Test.Tasty.HUnit
-
+import qualified Data.Aeson as Aeson
 import DA.Daml.Lsp.Test.Util
 import qualified Language.Haskell.LSP.Test as LSP
+
+fullCaps' :: ClientCapabilities
+fullCaps' = fullCaps { _window = Just $ WindowClientCapabilities $ Just True }
 
 main :: IO ()
 main = do
     setEnv "TASTY_NUM_THREADS" "1" True
     damlcPath <- locateRunfiles $
         mainWorkspace </> "compiler" </> "damlc" </> exe "damlc"
-    let run s = withTempDir $ \dir -> runSessionWithConfig conf (damlcPath <> " ide --scenarios=no") fullCaps dir s
+    let run s = withTempDir $ \dir -> runSessionWithConfig conf (damlcPath <> " ide --scenarios=no") fullCaps' dir s
         runScenarios s
             -- We are currently seeing issues with GRPC FFI calls which make everything
             -- that uses the scenario service extremely flaky and forces us to disable it on
             -- CI. Once https://github.com/digital-asset/daml/issues/1354 is fixed we can
             -- also run scenario tests on Windows.
             | isWindows = pure ()
-            | otherwise = withTempDir $ \dir -> runSessionWithConfig conf (damlcPath <> " ide --scenarios=yes") fullCaps dir s
+            | otherwise = withTempDir $ \dir -> runSessionWithConfig conf (damlcPath <> " ide --scenarios=yes") fullCaps' dir s
     defaultMain $ testGroup "LSP"
         [ diagnosticTests run runScenarios
         , requestTests run runScenarios
         , scenarioTests runScenarios
         , stressTests run runScenarios
+        , executeCommandTests run runScenarios
         ]
     where
         conf = defaultConfig
@@ -412,6 +417,44 @@ scenarioTests run = testGroup "scenarios"
           closeDoc main'
     ]
 
+executeCommandTests :: (forall a. Session a -> IO a) -> (Session () -> IO ()) -> TestTree
+executeCommandTests run _ = testGroup "execute command"
+    [ testCase "execute commands" $ run $ do
+        main' <- openDoc' "Main.daml" damlId $ T.unlines
+            [ "daml 1.2"
+            , "module Coin where"
+            , "template Coin"
+            , "  with"
+            , "    owner : Party"
+            , "  where"
+            , "    signatory owner"
+            , "    controller owner can"
+            , "      Delete : ()"
+            , "        do return ()"
+            ]
+        Just escapedFp <- pure $ uriToFilePath (main' ^. uri)
+        actualDotString :: ExecuteCommandResponse <- LSP.request WorkspaceExecuteCommand $ ExecuteCommandParams
+           "daml/damlVisualize"  (Just (List [Aeson.String $ T.pack escapedFp]))
+        let expectedDotString = "digraph G {\ncompound=true;\nrankdir=LR;\nsubgraph cluster_Coin{\nn0[label=Create][color=green]; \nn1[label=Archive][color=red]; \nn2[label=Delete][color=red]; \nlabel=<<table align = \"left\" border=\"0\" cellborder=\"0\" cellspacing=\"1\">\n<tr><td align=\"center\"><b>Coin</b></td></tr><tr><td align=\"left\">owner</td></tr> \n</table>>;color=blue\n}\n}\n"
+        liftIO $ assertEqual "Visulization command" (Just expectedDotString) (_result actualDotString)
+        closeDoc main'
+    , testCase "Invalid commands result in empty response"  $ run $ do
+        main' <- openDoc' "Main.daml" damlId $ T.unlines
+            [ "daml 1.2"
+            , "module Empty where"
+            ]
+        Just escapedFp <- pure $ uriToFilePath (main' ^. uri)
+        actualDotString :: ExecuteCommandResponse <- LSP.request WorkspaceExecuteCommand $ ExecuteCommandParams
+           "daml/NoCommand"  (Just (List [Aeson.String $ T.pack escapedFp]))
+        let expectedNull = Just Aeson.Null
+        liftIO $ assertEqual "Invlalid command" expectedNull (_result actualDotString)
+        closeDoc main'
+    , testCase "Visualization command with no arguments" $ run $ do
+        actualDotString :: ExecuteCommandResponse <- LSP.request WorkspaceExecuteCommand $ ExecuteCommandParams
+           "daml/damlVisualize"  Nothing
+        let expectedNull = Just Aeson.Null
+        liftIO $ assertEqual "Invlalid command" expectedNull (_result actualDotString)
+    ]
 
 -- | Do extreme things to the compiler service.
 stressTests
@@ -490,7 +533,7 @@ stressTests run _runScenarios = testGroup "Stress tests"
             [ "foo100 : Bool"
             , "foo100 = False"
             ]
-        withTimeout 30 $ do
+        withTimeout 90 $ do
             expectDiagnostics [("Foo0.daml", [(DsError, (4, 7), "Couldn't match expected type")])]
             void $ replaceDoc foo0 $ moduleContent "Foo0"
                 [ "import Foo1"

@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 load(
@@ -11,7 +11,7 @@ load(
 da_haskell_library(
     name = "daml-doc",
     srcs = glob(["src/**/*.hs"]),
-    hazel_deps = [
+    hackage_deps = [
         "aeson-pretty",
         "aeson",
         "base",
@@ -27,7 +27,9 @@ da_haskell_library(
         "ghc-lib",
         "hashable",
         "mtl",
+        "network-uri",
         "prettyprinter",
+        "stache",
         "text",
         "transformers",
     ],
@@ -42,16 +44,16 @@ da_haskell_library(
 da_haskell_library(
     name = "daml-doc-testing",
     srcs = glob(["test/**/*.hs"]),
-    hazel_deps = [
+    hackage_deps = [
         "aeson-pretty",
         "base",
         "bytestring",
-        "Diff",
         "directory",
         "extra",
         "filepath",
         "mtl",
         "tasty-hunit",
+        "tasty-golden",
         "text",
     ],
     src_strip_prefix = "test",

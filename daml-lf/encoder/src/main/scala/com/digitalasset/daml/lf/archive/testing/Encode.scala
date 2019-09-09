@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.archive.testing
@@ -11,7 +11,7 @@ import com.digitalasset.daml.lf.language.{LanguageMajorVersion, LanguageVersion}
 import com.digitalasset.daml_lf.{DamlLf => PLF}
 
 // Important: do not use this in production code. It is designed for testing only.
-private[digitalasset] object Encode {
+object Encode {
 
   private def encodePayloadOfVersion(
       idAndPkg: (PackageId, Package),

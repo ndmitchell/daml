@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 --
 
@@ -37,6 +37,7 @@ import "ghc-lib-parser" FastString
 import "ghc-lib-parser" Bag
 import "ghc-lib-parser" TcEvidence (HsWrapper(..))
 import Control.Monad
+import SdkVersion
 
 -- | Generate a module containing generic instances for data types that don't have them already.
 generateGenInstancesModule :: String -> (String, ParsedSource) -> String
@@ -44,13 +45,14 @@ generateGenInstancesModule qual (pkg, L _l src) =
     unlines $ header ++ map (showSDoc fakeDynFlags . ppr) genericInstances
   where
     modName =
-        moduleNameString $
-        unLoc $ fromMaybe (error "missing module name") $ hsmodName src
+        (moduleNameString $
+         unLoc $ fromMaybe (error "missing module name") $ hsmodName src) ++
+        qual
     header =
         [ "{-# LANGUAGE EmptyCase #-}"
         , "{-# LANGUAGE NoDamlSyntax #-}"
-        , "module " <> modName <> "Instances" <> qual <> " where"
-        , "import \"" <> pkg <> "\" " <> modName
+        , "module " <> modName <> "Instances" <> " where"
+        , "import " <> modName
         , "import DA.Generics"
         ]
     genericInstances =
@@ -75,36 +77,24 @@ generateGenInstancesModule qual (pkg, L _l src) =
 
 -- | Generate non-consuming choices to upgrade all templates defined in the module.
 generateUpgradeModule :: [String] -> String -> String -> String -> String
-generateUpgradeModule templateNames modName pkgA pkgB =
-    unlines $ header ++ concatMap upgradeTemplate templateNames
+generateUpgradeModule templateNames modName qualA qualB =
+    unlines $ header ++ concatMap upgradeTemplates templateNames
   where
     header =
         [ "daml 1.2"
         , "module " <> modName <> " where"
-        , "import \"" <> pkgA <> "\" " <> modName <> " qualified as A"
-        , "import \"" <> pkgB <> "\" " <> modName <> " qualified as B"
-        , "import " <> modName <> "InstancesA()"
-        , "import " <> modName <> "InstancesB()"
-        , "import DA.Next.Set"
+        , "import " <> modName <> qualA <> " qualified as A"
+        , "import " <> modName <> qualB <> " qualified as B"
+        , "import " <> modName <> "AInstances()"
+        , "import " <> modName <> "BInstances()"
         , "import DA.Upgrade"
         ]
 
-upgradeTemplate :: String -> [String]
-upgradeTemplate n =
-    [ "template " <> n <> "Upgrade"
-    , "    with"
-    , "        op : Party"
-    , "    where"
-    , "        signatory op"
-    , "        nonconsuming choice Upgrade: ContractId B." <> n
-    , "            with"
-    , "                inC : ContractId A." <> n
-    , "                sigs : [Party]"
-    , "            controller sigs"
-    , "                do"
-    , "                    d <- fetch inC"
-    , "                    assert $ fromList sigs == fromList (signatory d)"
-    , "                    create $ conv d"
+upgradeTemplates :: String -> [String]
+upgradeTemplates n =
+    [ "type " <> n <> "Upgrade = Upgrade A." <> n <> " B." <> n
+    , "type " <> n <> "Rollback = Rollback A." <> n <> " B." <> n
+    , "instance Convertible A." <> n <> " B." <> n
     ]
 
 -- | Generate the full source for a daml-lf package.
@@ -231,7 +221,6 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
         noLoc $
         mkRdrQual (mkModuleName "DA.Internal.Template") $
         mkOccName varName "Template" :: LHsType GhcPs
-    sigRdrName = noLoc $ mkRdrUnqual $ mkOccName varName "signatory"
     errTooManyNameComponents cs =
         error $
         "Internal error: Dalf contains type constructors with more than two name components: " <>
@@ -244,6 +233,71 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
             , length dataTyCon == 2
             , LF.DataRecord fs <- [dataCons]
             ]
+    templateMethodNames =
+        map mkRdrName
+            [ "signatory"
+            , "observer"
+            , "agreement"
+            , "fetch"
+            , "ensure"
+            , "create"
+            , "archive"
+            ]
+    classMethodStub :: Located RdrName -> LHsBindLR GhcPs GhcPs
+    classMethodStub funName =
+        noLoc $
+        FunBind
+            { fun_ext = noExt
+            , fun_id = funName
+            , fun_matches =
+                  MG
+                      { mg_ext = noExt
+                      , mg_alts =
+                            noLoc
+                                [ noLoc $
+                                  Match
+                                      { m_ext = noExt
+                                      , m_ctxt =
+                                            FunRhs
+                                                { mc_fun = funName
+                                                , mc_fixity = Prefix
+                                                , mc_strictness = NoSrcStrict
+                                                }
+                                      , m_pats = []
+                                      , m_rhs_sig = Nothing
+                                      , m_grhss =
+                                            GRHSs
+                                                { grhssExt = noExt
+                                                , grhssGRHSs =
+                                                      [ noLoc $
+                                                        GRHS
+                                                            noExt
+                                                            []
+                                                            (noLoc $
+                                                             HsApp
+                                                                 noExt
+                                                                 (noLoc $
+                                                                  HsVar
+                                                                      noExt
+                                                                      (noLoc
+                                                                           error_RDR))
+                                                                 (noLoc $
+                                                                  HsLit noExt $
+                                                                  HsString
+                                                                      NoSourceText $
+                                                                  mkFastString
+                                                                      "undefined template class method in generated code"))
+                                                      ]
+                                                , grhssLocalBinds =
+                                                      noLoc emptyLocalBinds
+                                                }
+                                      }
+                                ]
+                      , mg_origin = Generated
+                      }
+            , fun_co_fn = WpHole
+            , fun_tick = []
+            }
     decls =
         concat $ do
             LF.DefDataType {..} <- NM.toList $ LF.moduleDataTypes m
@@ -303,71 +357,7 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
                                             HsAppTy noExt templateTy $
                                             noLoc $ convType templType
                                       }
-                            , cid_binds =
-                                  listToBag
-                                      [ noLoc $
-                                        FunBind
-                                            { fun_ext = noExt
-                                            , fun_id = sigRdrName
-                                            , fun_matches =
-                                                  MG
-                                                      { mg_ext = noExt
-                                                      , mg_alts =
-                                                            noLoc
-                                                                [ noLoc $
-                                                                  Match
-                                                                      { m_ext =
-                                                                            noExt
-                                                                      , m_ctxt =
-                                                                            FunRhs
-                                                                                { mc_fun =
-                                                                                      sigRdrName
-                                                                                , mc_fixity =
-                                                                                      Prefix
-                                                                                , mc_strictness =
-                                                                                      NoSrcStrict
-                                                                                }
-                                                                      , m_pats = []
-                                                                      , m_rhs_sig =
-                                                                            Nothing
-                                                                      , m_grhss =
-                                                                            GRHSs
-                                                                                { grhssExt =
-                                                                                      noExt
-                                                                                , grhssGRHSs =
-                                                                                      [ noLoc $
-                                                                                        GRHS
-                                                                                            noExt
-                                                                                            [
-                                                                                            ]
-                                                                                            (noLoc $
-                                                                                             HsApp
-                                                                                                 noExt
-                                                                                                 (noLoc $
-                                                                                                  HsVar
-                                                                                                      noExt
-                                                                                                      (noLoc
-                                                                                                           error_RDR))
-                                                                                                 (noLoc $
-                                                                                                  HsLit
-                                                                                                      noExt $
-                                                                                                  HsString
-                                                                                                      NoSourceText $
-                                                                                                  mkFastString
-                                                                                                      "undefined template class method in generated code"))
-                                                                                      ]
-                                                                                , grhssLocalBinds =
-                                                                                      noLoc
-                                                                                      emptyLocalBinds
-                                                                                }
-                                                                      }
-                                                                ]
-                                                      , mg_origin = Generated
-                                                      }
-                                            , fun_co_fn = WpHole
-                                            , fun_tick = []
-                                            }
-                                      ]
+                            , cid_binds = listToBag $ map classMethodStub templateMethodNames
                             , cid_sigs = []
                             , cid_tyfam_insts = []
                             , cid_datafam_insts = []
@@ -519,6 +509,9 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
                     noExt
                     HsBoxedTuple
                     [noLoc $ convType ty | (_fldName, ty) <- fls]
+            -- TODO (#2289): Add support for nat kind.
+            LF.TNat _ -> error "nat kind not yet suppported in upgrades"
+
     convBuiltInTy :: LF.BuiltinType -> HsType GhcPs
     convBuiltInTy =
         \case
@@ -537,10 +530,12 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
             LF.BTOptional -> mkLfInternalPrelude "Optional"
             LF.BTMap -> mkLfInternalType "TextMap"
             LF.BTArrow -> mkTyConTypeUnqual funTyCon
+            -- TODO (#2289): Add support for Numeric types.
+            LF.BTNumeric -> error "Numeric type not yet supported in upgrades"
     mkGhcType =
         HsTyVar noExt NotPromoted .
         noLoc . mkOrig gHC_TYPES . mkOccName varName
-    damlStdlibUnitId = stringToUnitId "daml-stdlib"
+    damlStdlibUnitId = stringToUnitId damlStdlib
     mkLfInternalType =
         HsTyVar noExt NotPromoted .
         noLoc .
@@ -627,20 +622,20 @@ generateSrcFromLf (Qualify qualify) thisPkgId pkgMap m = noLoc mod
             LF.BTInt64 -> (primUnitId, translateModName intTyCon)
             LF.BTDecimal -> (primUnitId, LF.ModuleName ["GHC", "Types"])
             LF.BTText -> (primUnitId, LF.ModuleName ["GHC", "Types"])
-            LF.BTTimestamp -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
-            LF.BTDate -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
-            LF.BTParty -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTTimestamp -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTDate -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTParty -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
             LF.BTUnit -> (primUnitId, translateModName unitTyCon)
             LF.BTBool -> (primUnitId, translateModName boolTyCon)
             LF.BTList -> (primUnitId, translateModName listTyCon)
-            LF.BTUpdate -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
-            LF.BTScenario -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
-            LF.BTContractId -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
-            LF.BTOptional -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "Prelude"])
-            LF.BTMap -> (stdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTUpdate -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTScenario -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTContractId -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
+            LF.BTOptional -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "Prelude"])
+            LF.BTMap -> (damlStdlibUnitId, LF.ModuleName ["DA", "Internal", "LF"])
             LF.BTArrow -> (primUnitId, translateModName funTyCon)
-
-    stdlibUnitId = stringToUnitId "daml-stdlib"
+            -- TODO (#2289): Add support for Numeric types.
+            LF.BTNumeric -> error "Numeric type not yet supported in upgrades"
 
     translateModName ::
            forall a. NamedThing a

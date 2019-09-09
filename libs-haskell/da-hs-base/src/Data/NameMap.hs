@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE FlexibleInstances #-}
@@ -37,6 +37,7 @@ module Data.NameMap
   , insertEither
   , insertMany
   , insertManyEither
+  , union
 
   -- * Transformations
   , map
@@ -168,6 +169,11 @@ member n = HMS.member n . toHashMap
 
 lookup :: Named a => Name a -> NameMap a -> Maybe a
 lookup n = HMS.lookup n . toHashMap
+
+union :: Named a => NameMap a -> NameMap a -> NameMap a
+union (NameMap _ nm1) (NameMap _ nm2) =
+    let m = nm1 `HMS.union` nm2
+     in NameMap (HMS.toList m) (nm1 `HMS.union` nm2)
 
 (!) :: (HasCallStack, Named a) => NameMap a -> Name a -> a
 (!) nm n = case lookup n nm of

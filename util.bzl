@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 # Helpers for setting up Hazel rules
@@ -36,7 +36,7 @@ def hazel_hackage(name, version, sha, **kwargs):
 # Things we override from GitHub
 def hazel_github_external(project, repoName, commit, sha, directory = "", name = None, **kwargs):
     args = {
-        "url": "https://github.com/" + project + "/" + repoName + "/archive/" + commit + ".zip",
+        "url": "https://github.com/" + project + "/" + repoName + "/archive/" + commit + ".tar.gz",
         "sha256": sha,
         "stripPrefix": repoName + "-" + commit + directory,
     }

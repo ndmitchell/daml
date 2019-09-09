@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.rxjava.components;
@@ -178,7 +178,7 @@ public class Bot {
                     cs.getCommandId(), cs.getParty(), cs.getLedgerEffectiveTime(), cs.getMaximumRecordTime(),
                     cs.getCommands())
                     .flatMapMaybe(s -> Maybe.<LedgerViewFlowable.SubmissionFailure> empty())
-                    .doOnError(t -> logger.info("Error submitting commands {} for party {}: {}", cs.getCommandId(), cs.getParty(), t.getMessage()))
+                    .doOnError(t -> logger.error("Error submitting commands {} for party {}: {}", cs.getCommandId(), cs.getParty(), t.getMessage()))
                     .onErrorReturn(t -> new LedgerViewFlowable.SubmissionFailure(cs.getCommandId(), t))
                     , "commandSubmissions");
         };

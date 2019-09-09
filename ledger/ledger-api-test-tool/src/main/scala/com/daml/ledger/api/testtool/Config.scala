@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.api.testtool
@@ -8,8 +8,7 @@ import java.io.File
 import com.digitalasset.ledger.api.tls.TlsConfiguration
 
 final case class Config(
-    host: String,
-    port: Int,
+    participants: Vector[(String, Int)],
     darPackages: List[File],
     mustFail: Boolean,
     verbose: Boolean,
@@ -20,15 +19,12 @@ final case class Config(
     excluded: Set[String],
     included: Set[String],
     listTests: Boolean,
-    allTests: Boolean,
-    uniquePartyIdentifiers: Boolean,
-    uniqueCommandIdentifiers: Boolean
+    allTests: Boolean
 )
 
 object Config {
   val default = Config(
-    host = "localhost",
-    port = 6865,
+    participants = Vector.empty,
     darPackages = Nil,
     mustFail = false,
     verbose = false,
@@ -39,8 +35,6 @@ object Config {
     excluded = Set.empty,
     included = Set.empty,
     listTests = false,
-    allTests = false,
-    uniquePartyIdentifiers = true,
-    uniqueCommandIdentifiers = true,
+    allTests = false
   )
 }

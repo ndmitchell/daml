@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.data
@@ -9,7 +9,12 @@ import scalaz.Equal
 object Ref {
 
   /* Location annotation */
-  case class Location(packageId: PackageId, module: ModuleName, start: (Int, Int), end: (Int, Int))
+  case class Location(
+      packageId: PackageId,
+      module: ModuleName,
+      definition: String,
+      start: (Int, Int),
+      end: (Int, Int))
 
   // we do not use String.split because `":foo".split(":")`
   // results in `List("foo")` rather than `List("", "foo")`
@@ -76,7 +81,7 @@ object Ref {
 
     @throws[IllegalArgumentException]
     final def assertFromString(s: String): T =
-      assert(fromString(s))
+      assertRight(fromString(s))
 
     def fromSegments(strings: Iterable[String]): Either[String, DottedName] = {
       val init: Either[String, BackStack[Name]] = Right(BackStack.empty)
@@ -93,14 +98,14 @@ object Ref {
 
     @throws[IllegalArgumentException]
     def assertFromSegments(s: Iterable[String]): DottedName =
-      assert(fromSegments(s))
+      assertRight(fromSegments(s))
 
     def fromNames(names: ImmArray[Name]): Either[String, DottedName] =
       Either.cond(names.nonEmpty, new DottedName(names), "No segments provided")
 
     @throws[IllegalArgumentException]
     def assertFromNames(names: ImmArray[Name]): DottedName =
-      assert(fromNames(names))
+      assertRight(fromNames(names))
 
     /** You better know what you're doing if you use this one -- specifically you need to comply
       * to the lexical specification embodied by `fromStrings`.
@@ -131,7 +136,7 @@ object Ref {
 
     @throws[IllegalArgumentException]
     final def assertFromString(s: String): T =
-      assert(fromString(s))
+      assertRight(fromString(s))
   }
 
   /* A fully-qualified identifier pointing to a definition in the

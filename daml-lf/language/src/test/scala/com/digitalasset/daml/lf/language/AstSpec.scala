@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.language
@@ -22,7 +22,7 @@ class AstSpec extends WordSpec with TableDrivenPropertyChecks with Matchers {
         List(
           Module(modName1, List.empty, List.empty, defaultVersion, FeatureFlags.default),
           Module(modName2, List.empty, List.empty, defaultVersion, FeatureFlags.default)))
-      an[PackageError] shouldBe thrownBy(
+      a[PackageError] shouldBe thrownBy(
         Package(
           List(
             Module(modName1, List.empty, List.empty, defaultVersion, FeatureFlags.default),
@@ -67,7 +67,7 @@ class AstSpec extends WordSpec with TableDrivenPropertyChecks with Matchers {
         featureFlags = FeatureFlags.default,
       )
 
-      an[PackageError] shouldBe thrownBy(
+      a[PackageError] shouldBe thrownBy(
         Module.apply(
           name = modName1,
           definitions = List(
@@ -98,7 +98,7 @@ class AstSpec extends WordSpec with TableDrivenPropertyChecks with Matchers {
         featureFlags = FeatureFlags.default,
       )
 
-      an[PackageError] shouldBe thrownBy(
+      a[PackageError] shouldBe thrownBy(
         Module.apply(
           name = modName1,
           definitions = List(
@@ -129,7 +129,7 @@ class AstSpec extends WordSpec with TableDrivenPropertyChecks with Matchers {
         featureFlags = FeatureFlags.default,
       )
 
-      an[PackageError] shouldBe thrownBy(
+      a[PackageError] shouldBe thrownBy(
         Module.apply(
           name = modName1,
           definitions = List(
@@ -177,7 +177,7 @@ class AstSpec extends WordSpec with TableDrivenPropertyChecks with Matchers {
         key = None
       )
 
-      an[PackageError] shouldBe thrownBy(
+      a[PackageError] shouldBe thrownBy(
         Template(
           param = Name.assertFromString("x"),
           precond = ETrue,

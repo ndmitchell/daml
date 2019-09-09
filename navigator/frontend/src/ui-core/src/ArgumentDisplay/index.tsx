@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 import * as React from 'react';
@@ -88,7 +88,7 @@ const ArgumentDisplay = (props: Props): JSX.Element => {
     case 'text': return <span>{argument.value}</span>;
     case 'party': return <span>{argument.value}</span>;
     case 'contractid': return <span>{argument.value}</span>;
-    case 'decimal': return <span>{argument.value}</span>;
+    case 'numeric': return <span>{argument.value}</span>;
     case 'int64': return <span>{argument.value}</span>;
     case 'timestamp': {
       const moment = DamlLfValueF.toMoment(argument);

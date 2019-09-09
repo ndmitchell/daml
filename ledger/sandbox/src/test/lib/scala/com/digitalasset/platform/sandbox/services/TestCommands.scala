@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.sandbox.services
@@ -23,11 +23,10 @@ import com.digitalasset.ledger.api.v1.commands.{Command, Commands, CreateCommand
 import com.digitalasset.ledger.api.v1.value.Value.Sum
 import com.digitalasset.ledger.api.v1.value.Value.Sum.{Bool, Party, Text, Timestamp}
 import com.digitalasset.ledger.api.v1.value.{Identifier, Record, RecordField, Value, Variant}
-import com.digitalasset.platform.sandbox.TestTemplateIdentifiers
+import com.digitalasset.platform.testing.TestTemplateIdentifiers
 import com.google.protobuf.timestamp.{Timestamp => GTimestamp}
 import scalaz.syntax.tag._
 
-// TODO(mthvedt): Delete this old copy when we finish migrating to ledger-api-integration-tests.
 @SuppressWarnings(Array("org.wartremover.warts.Any"))
 trait TestCommands {
 
@@ -105,7 +104,7 @@ trait TestCommands {
       Vector(
         RecordField("operator", "Alice".asParty),
         RecordField("integer", 1.asInt64),
-        RecordField("decimal", "1.1".asDecimal),
+        RecordField("decimal", "1.1".asNumeric),
         RecordField("text", Value(Text("text"))),
         RecordField("bool", Value(Bool(true))),
         RecordField("time", Value(Timestamp(0))),

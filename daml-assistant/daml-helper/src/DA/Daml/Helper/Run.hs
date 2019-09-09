@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 module DA.Daml.Helper.Run
     ( runDamlStudio
@@ -8,7 +8,14 @@ module DA.Daml.Helper.Run
     , runJar
     , runListTemplates
     , runStart
+
+    , HostAndPortFlags(..)
+    , JsonFlag(..)
     , runDeploy
+    , runLedgerAllocateParties
+    , runLedgerListParties
+    , runLedgerUploadDar
+    , runLedgerNavigator
 
     , withJar
     , withSandbox
@@ -21,6 +28,8 @@ module DA.Daml.Helper.Run
 
     , NavigatorPort(..)
     , SandboxPort(..)
+    , JsonApiPort(..)
+    , JsonApiConfig(..)
     , ReplaceExtension(..)
     , OpenBrowser(..)
     , StartNavigator(..)
@@ -36,10 +45,11 @@ import Control.Monad.Extra hiding (fromMaybeM)
 import Control.Monad.Loops (untilJust)
 import Data.Maybe
 import Data.List.Extra
-import Data.String(fromString)
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
 import qualified Data.Text as T
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Lazy.IO as TL
 import qualified Data.Yaml as Y
 import qualified Data.Yaml.Pretty as Y
 import qualified Network.HTTP.Client as HTTP
@@ -51,17 +61,21 @@ import System.Directory.Extra
 import System.Environment hiding (setEnv)
 import System.Exit
 import System.Info.Extra
+import System.Process (showCommandForUser)
+import System.Process.Internals (translate)
 import System.Process.Typed
 import System.IO
 import System.IO.Extra
 import Web.Browser
+import Data.Aeson
+import Data.Aeson.Text
 
+import DA.Daml.Helper.Ledger as Ledger
 import DA.Daml.Project.Config
 import DA.Daml.Project.Consts
 import DA.Daml.Project.Types
 import DA.Daml.Project.Util
 
-import qualified DA.Ledger as L
 
 data DamlHelperError = DamlHelperError
     { errMessage :: T.Text
@@ -81,6 +95,53 @@ required msg = fromMaybeM (throwIO $ DamlHelperError msg Nothing)
 requiredE :: Exception e => T.Text -> Either e t -> IO t
 requiredE msg = fromRightM (throwIO . DamlHelperError msg . Just . T.pack . displayException)
 
+defaultingE :: Exception e => T.Text -> a -> Either e (Maybe a) -> IO a
+defaultingE msg a e = fmap (fromMaybe a) $ requiredE msg e
+
+-- [Note cmd.exe and why everything is horrible]
+--
+-- cmd.exe has a terrible behavior where it strips the first and last
+-- quote under certain conditions, quoting cmd.exe /?:
+--
+-- > 1.  If all of the following conditions are met, then quote characters
+-- >     on the command line are preserved:
+-- >
+-- >     - no /S switch
+-- >     - exactly two quote characters
+-- >     - no special characters between the two quote characters,
+-- >       where special is one of: &<>()@^|
+-- >     - there are one or more whitespace characters between the
+-- >       the two quote characters
+-- >     - the string between the two quote characters is the name
+-- >       of an executable file.
+-- >
+-- > 2.  Otherwise, old behavior is to see if the first character is
+-- >     a quote character and if so, strip the leading character and
+-- >     remove the last quote character on the command line, preserving
+-- >     any text after the last quote character.
+--
+-- By adding a quote at the beginning and the end, we always fall into 2
+-- and the line after stripping the first and last quote corresponds to the one we want.
+--
+-- To make things worse that does not seem to be sufficient sadly:
+-- If we quote `"code"` it seems to result in cmd.exe no longer looking
+-- for it in PATH. I was unable to find any documentation or other information
+-- on this behavior.
+
+-- See [Note cmd.exe and why everything is horrible]
+toVsCodeCommand :: [String] -> ProcessConfig () () ()
+toVsCodeCommand args
+    | isWindows = shell $ "\"" <> unwords ("code" : map translate args) <> "\""
+    | otherwise = shell $ showCommandForUser "code" args
+
+-- See [Note cmd.exe and why everything is horrible]
+toAssistantCommand :: [String] -> IO (ProcessConfig () () ())
+toAssistantCommand args = do
+    assistant <- getDamlAssistant
+    pure $ if isWindows
+        then shell $ "\"" <> showCommandForUser assistant args <> "\""
+        else shell $ showCommandForUser assistant args
+
 data ReplaceExtension
     = ReplaceExtNever
     -- ^ Never replace an existing extension.
@@ -98,8 +159,8 @@ runVsCodeCommand args = do
             -- prevent setting DAML_SDK_VERSION too early. See issue #1666.
         commandEnv = addVsCodeToPath strippedEnv
             -- ^ Ensure "code" is in PATH before running command.
-        command = unwords ("code" : args)
-        process = setEnv commandEnv (shell command)
+        command = toVsCodeCommand args
+        process = setEnv commandEnv command
     (exit, out, err) <- readProcess process
     pure (exit, UTF8.toString out, UTF8.toString err)
 
@@ -304,7 +365,7 @@ runInit targetFolderM = do
             , "    target = " <> targetFolderRel
             , ""
             , "To create a project directory use daml new instead:"
-            , "    daml new " <> escapePath targetFolderRel
+            , "    " <> showCommandForUser "daml" ["new", targetFolderRel]
             ]
         exitFailure
     targetFolderAbs <- makeAbsolute targetFolder -- necessary to find project roots
@@ -333,7 +394,7 @@ runInit targetFolderM = do
                 , "    DA project root   = " <> projectRootRel
                 , ""
                 , "To proceed with da.yaml migration, please use the project root:"
-                , "    daml init " <> escapePath projectRootRel
+                , "    " <> showCommandForUser "daml" ["init", projectRootRel]
                 ]
             exitFailure
 
@@ -451,8 +512,8 @@ runInit targetFolderM = do
 -- * Creation of a project in existing folder (suggest daml init instead).
 -- * Creation of a project inside another project.
 --
-runNew :: FilePath -> Maybe String -> Maybe FilePath -> [String] -> IO ()
-runNew targetFolder templateNameM mbMain pkgDeps = do
+runNew :: FilePath -> Maybe String -> [String] -> IO ()
+runNew targetFolder templateNameM pkgDeps = do
     templatesFolder <- getTemplatesFolder
     let templateName = fromMaybe defaultProjectTemplate templateNameM
         templateFolder = templatesFolder </> templateName
@@ -472,7 +533,7 @@ runNew targetFolder templateNameM mbMain pkgDeps = do
             [ "Directory " <> show targetFolder <> " already exists."
             , "Please specify a new directory, or use 'daml init' instead:"
             , ""
-            , "    daml init " <> escapePath targetFolder
+            , "    " <> showCommandForUser "daml" ["init", targetFolder]
             , ""
             ]
         exitFailure
@@ -489,7 +550,7 @@ runNew targetFolder templateNameM mbMain pkgDeps = do
                 [ "Template name " <> projectName <> " was given as project name."
                 , "Please specify a project name separately, for example:"
                 , ""
-                , "    daml new myproject " <> projectName
+                , "    " <> showCommandForUser "daml" ["new", "myproject", projectName]
                 , ""
                 ]
             exitFailure
@@ -511,7 +572,7 @@ runNew targetFolder templateNameM mbMain pkgDeps = do
             [ "Target directory is inside existing DA project " <> show daRoot
             , "Please convert DA project to DAML using 'daml init':"
             , ""
-            , "    daml init " <> escapePath daRoot
+            , "    " <> showCommandForUser "daml" ["init", daRoot]
             , ""
             , "Or specify a new directory outside an existing project."
             ]
@@ -532,7 +593,6 @@ runNew targetFolder templateNameM mbMain pkgDeps = do
         let config = replace "__VERSION__"  sdkVersion
                    . replace "__PROJECT_NAME__" projectName
                    . replace "__DEPENDENCIES__" (unlines ["  - " <> dep | dep <- pkgDeps])
-                   . maybe id (replace "__MAIN__") mbMain
                    $ configTemplate
         writeFileUTF8 configPath config
         removeFile configTemplatePath
@@ -543,29 +603,27 @@ runNew targetFolder templateNameM mbMain pkgDeps = do
         "\" based on the template \"" <> templateName <> "\"."
 
 -- | Create a project containing code to migrate a running system between two given packages.
-runMigrate :: FilePath -> FilePath -> FilePath -> FilePath -> IO ()
-runMigrate targetFolder main pkgPath1 pkgPath2
+runMigrate :: FilePath -> FilePath -> FilePath -> IO ()
+runMigrate targetFolder pkgPath1 pkgPath2
  = do
     pkgPath1Abs <- makeAbsolute pkgPath1
     pkgPath2Abs <- makeAbsolute pkgPath2
     -- Create a new project
-    runNew targetFolder (Just "migrate") (Just main) [pkgPath1Abs, pkgPath2Abs]
+    runNew targetFolder (Just "migrate") [pkgPath1Abs, pkgPath2Abs]
 
     -- Call damlc to create the upgrade source files.
-    assistant <- getDamlAssistant
-    runProcess_
-        (shell $ unwords $
-         assistant :
-         [ "damlc"
-         , "migrate"
-         , "--srcdir"
-         , "daml"
-         , "--project-root"
-         , targetFolder
-         , "upgrade-pkg"
-         , pkgPath1
-         , pkgPath2
-         ])
+    procConfig <- toAssistantCommand
+        [ "damlc"
+        , "migrate"
+        , "--srcdir"
+        , "daml"
+        , "--project-root"
+        , targetFolder
+        , "upgrade-pkg"
+        , pkgPath1
+        , pkgPath2
+        ]
+    runProcess_ procConfig
 
 defaultProjectTemplate :: String
 defaultProjectTemplate = "skeleton"
@@ -582,16 +640,6 @@ findDaProjectRoot = findAscendantWithFile legacyConfigName
 findAscendantWithFile :: FilePath -> FilePath -> IO (Maybe FilePath)
 findAscendantWithFile filename path =
     findM (\p -> doesFileExist (p </> filename)) (ascendants path)
-
--- | Escape special characters in a filepath so they can be used as a shell
--- argument when displaying a suggested command to user. Do not use this to
--- invoke shell commands directly (there are libraries designed for that).
-escapePath :: FilePath -> FilePath
-escapePath p | isWindows = concat ["\"", p, "\""] -- Windows is a mess
-escapePath p = p >>= \c ->
-    if c `elem` (" \\\"\'$*{}#" :: String)
-        then ['\\', c]
-        else [c]
 
 -- | Our SDK installation is read-only to prevent users from accidentally modifying it.
 -- But when we copy from it in "daml new" we want the result to be writable.
@@ -610,8 +658,9 @@ runListTemplates = do
           "The following templates are available:" :
           (map ("  " <>) . sort . map takeFileName) templates
 
-newtype SandboxPort = SandboxPort Int -- TODO: rename: LedgerPort?
+newtype SandboxPort = SandboxPort Int
 newtype NavigatorPort = NavigatorPort Int
+newtype JsonApiPort = JsonApiPort Int
 
 navigatorPortNavigatorArgs :: NavigatorPort -> [String]
 navigatorPortNavigatorArgs (NavigatorPort p) = ["--port", show p]
@@ -637,7 +686,22 @@ withNavigator (SandboxPort sandboxPort) navigatorPort args a = do
     withJar navigatorPath navigatorArgs $ \ph -> do
         putStrLn "Waiting for navigator to start: "
         -- TODO We need to figure out a sane timeout for this step.
-        waitForHttpServer (putStr "." *> threadDelay 500000) (navigatorURL navigatorPort)
+        waitForHttpServer (putStr "." *> threadDelay 500000) (navigatorURL navigatorPort) []
+        a ph
+
+withJsonApi :: SandboxPort -> JsonApiPort -> [String] -> (Process () () () -> IO a) -> IO a
+withJsonApi (SandboxPort sandboxPort) (JsonApiPort jsonApiPort) args a = do
+    let jsonApiArgs =
+            ["--ledger-host", "localhost", "--ledger-port", show sandboxPort, "--http-port", show jsonApiPort] <> args
+    withJar jsonApiPath jsonApiArgs $ \ph -> do
+        putStrLn "Waiting for JSON API to start: "
+        -- For now, we have a dummy authorization header here to wait for startup since we cannot get a 200
+        -- response otherwise. We probably want to add some method to detect successful startup without
+        -- any authorization
+        let headers =
+                [ ("Authorization", "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJsZWRnZXJJZCI6Ik15TGVkZ2VyIiwiYXBwbGljYXRpb25JZCI6ImZvb2JhciIsInBhcnR5IjoiQWxpY2UifQ.4HYfzjlYr1ApUDot0a6a4zB49zS_jrwRUOCkAiPMqo0")
+                ] :: HTTP.RequestHeaders
+        waitForHttpServer (putStr "." *> threadDelay 500000) ("http://localhost:" <> show jsonApiPort <> "/contracts/search") headers
         a ph
 
 -- | Whether `daml start` should open a browser automatically.
@@ -646,11 +710,16 @@ newtype OpenBrowser = OpenBrowser Bool
 -- | Whether `daml start` should start the navigator automatically.
 newtype StartNavigator = StartNavigator Bool
 
+data JsonApiConfig = JsonApiConfig
+  { mbJsonApiPort :: Maybe JsonApiPort -- If Nothing, don’t start the JSON API
+  }
+
 -- | Whether `daml start` should wait for Ctrl+C or interrupt after starting servers.
 newtype WaitForSignal = WaitForSignal Bool
 
-runStart :: SandboxPort -> StartNavigator -> OpenBrowser -> Maybe String -> WaitForSignal -> IO ()
-runStart sandboxPort (StartNavigator shouldStartNavigator) (OpenBrowser shouldOpenBrowser) onStartM (WaitForSignal shouldWaitForSignal) = withProjectRoot Nothing (ProjectCheck "daml start" True) $ \_ _ -> do
+runStart :: Maybe SandboxPort -> StartNavigator -> JsonApiConfig -> OpenBrowser -> Maybe String -> WaitForSignal -> IO ()
+runStart sandboxPortM (StartNavigator shouldStartNavigator) (JsonApiConfig mbJsonApiPort) (OpenBrowser shouldOpenBrowser) onStartM (WaitForSignal shouldWaitForSignal) = withProjectRoot Nothing (ProjectCheck "daml start" True) $ \_ _ -> do
+    let sandboxPort = fromMaybe defaultSandboxPort sandboxPortM
     projectConfig <- getProjectConfig
     darPath <- getDarPath
     mbScenario :: Maybe String <-
@@ -663,42 +732,150 @@ runStart sandboxPort (StartNavigator shouldStartNavigator) (OpenBrowser shouldOp
             whenJust onStartM $ \onStart -> runProcess_ (shell onStart)
             when (shouldStartNavigator && shouldOpenBrowser) $
                 void $ openBrowser (navigatorURL navigatorPort)
-            when shouldWaitForSignal $
-                void $ race (waitExitCode navigatorPh) (waitExitCode sandboxPh)
+            withJsonApi' sandboxPh sandboxPort [] $ \jsonApiPh -> do
+                when shouldWaitForSignal $
+                  void $ waitAnyCancel =<< mapM (async . waitExitCode) [navigatorPh,sandboxPh,jsonApiPh]
 
-    where navigatorPort = NavigatorPort 7500
-          withNavigator' sandboxPh =
-              if shouldStartNavigator
-                  then withNavigator
-                  else (\_ _ _ f -> f sandboxPh)
+    where
+        navigatorPort = NavigatorPort 7500
+        defaultSandboxPort = SandboxPort 6865
+        withNavigator' sandboxPh =
+            if shouldStartNavigator
+                then withNavigator
+                else (\_ _ _ f -> f sandboxPh)
+        withJsonApi' sandboxPh sandboxPort args f =
+            case mbJsonApiPort of
+                Nothing -> f sandboxPh
+                Just jsonApiPort -> withJsonApi sandboxPort jsonApiPort args f
 
-runDeploy :: String -> SandboxPort -> IO ()
-runDeploy host sandboxPort = do
-    darPath <- getDarPath
-    doBuild
-    let SandboxPort port = sandboxPort
-    putStrLn $ "Deploying " <> darPath <> " to ledger on " <> host <> ":" <> show port
+data HostAndPortFlags = HostAndPortFlags { hostM :: Maybe String, portM :: Maybe Int }
+
+getHostAndPortDefaults :: HostAndPortFlags -> IO HostAndPort
+getHostAndPortDefaults HostAndPortFlags{hostM,portM} = do
+    host <- fromMaybeM getProjectLedgerHost hostM
+    port <- fromMaybeM getProjectLedgerPort portM
+    return HostAndPort {..}
+
+
+-- | Allocate project parties and upload project DAR file to ledger.
+runDeploy :: HostAndPortFlags -> IO ()
+runDeploy flags = do
+    hp <- getHostAndPortDefaults flags
+    putStrLn $ "Deploying to " <> show hp
+    let flags' = HostAndPortFlags
+            { hostM = Just (host hp)
+            , portM = Just (port hp) }
+    runLedgerAllocateParties flags' []
+    runLedgerUploadDar flags' Nothing
+    putStrLn "Deploy succeeded."
+
+newtype JsonFlag = JsonFlag { unJsonFlag :: Bool }
+
+-- | Fetch list of parties from ledger.
+runLedgerListParties :: HostAndPortFlags -> JsonFlag -> IO ()
+runLedgerListParties flags (JsonFlag json) = do
+    hp <- getHostAndPortDefaults flags
+    unless json . putStrLn $ "Listing parties at " <> show hp
+    xs <- Ledger.listParties hp
+    if json then do
+        TL.putStrLn . encodeToLazyText . toJSON $
+            [ object
+                [ "party" .= TL.toStrict (unParty party)
+                , "display_name" .= TL.toStrict displayName
+                , "is_local" .= isLocal
+                ]
+            | PartyDetails {..} <- xs
+            ]
+    else if null xs then
+        putStrLn "no parties are known"
+    else
+        mapM_ print xs
+
+-- | Allocate parties on ledger. If list of parties is empty,
+-- defaults to the project parties.
+runLedgerAllocateParties :: HostAndPortFlags -> [String] -> IO ()
+runLedgerAllocateParties flags partiesArg = do
+    parties <- if notNull partiesArg
+        then pure partiesArg
+        else getProjectParties
+    hp <- getHostAndPortDefaults flags
+    putStrLn $ "Checking party allocation at " <> show hp
+    mapM_ (allocatePartyIfRequired hp) parties
+
+-- | Allocate a party if it doesn't already exist (by display name).
+allocatePartyIfRequired :: HostAndPort -> String -> IO ()
+allocatePartyIfRequired hp name = do
+    partyM <- Ledger.lookupParty hp name
+    party <- flip fromMaybeM partyM $ do
+        putStrLn $ "Allocating party for '" <> name <> "' at " <> show hp
+        Ledger.allocateParty hp name
+    putStrLn $ "Allocated " <> show party <> " for '" <> name <> "' at " <> show hp
+
+-- | Upload a DAR file to the ledger. (Defaults to project DAR)
+runLedgerUploadDar :: HostAndPortFlags -> Maybe FilePath -> IO ()
+runLedgerUploadDar flags darPathM = do
+    hp <- getHostAndPortDefaults flags
+    darPath <- flip fromMaybeM darPathM $ do
+        doBuild
+        getDarPath
+    putStrLn $ "Uploading " <> darPath <> " to " <> show hp
     bytes <- BS.readFile darPath
-    let ls = L.uploadDarFile bytes
-    let timeout = 30 :: L.TimeoutSeconds
-    let ledgerClientConfig = L.configOfHostAndPort (L.Host $ fromString host) (L.Port port)
-    L.runLedgerService ls timeout ledgerClientConfig >>= \case
-        Right () -> do
-            putStrLn "Deploy succeeded."
-            exitSuccess
-        Left e -> do
-            hPutStrLn stderr $ "Deploy failed: " <> e
-            exitFailure
+    Ledger.uploadDarFile hp bytes
+    putStrLn "DAR upload succeeded."
+
+-- | Run navigator against configured ledger. We supply Navigator with
+-- the list of parties from the ledger, but in the future Navigator
+-- should fetch the list of parties itself.
+runLedgerNavigator :: HostAndPortFlags -> [String] -> IO ()
+runLedgerNavigator flags remainingArguments = do
+    hostAndPort <- getHostAndPortDefaults flags
+    putStrLn $ "Opening navigator at " <> show hostAndPort
+    partyDetails <- Ledger.listParties hostAndPort
+
+    withTempDir $ \confDir -> do
+        let navigatorConfPath = confDir </> "ui-backend.conf"
+            navigatorArgs = concat
+                [ ["server"]
+                , [host hostAndPort, show (port hostAndPort)]
+                , remainingArguments
+                ]
+
+        writeFileUTF8 navigatorConfPath (T.unpack $ navigatorConfig partyDetails)
+        unsetEnv "DAML_PROJECT" -- necessary to prevent config contamination
+        withCurrentDirectory confDir $ do
+            withJar navigatorPath navigatorArgs $ \ph -> do
+                exitCode <- waitExitCode ph
+                exitWith exitCode
+
+  where
+    navigatorConfig :: [PartyDetails] -> T.Text
+    navigatorConfig partyDetails = T.unlines . concat $
+        [ ["users", "  {"]
+        , [ T.concat
+            [ "    "
+            , T.pack . show $
+                if TL.null displayName
+                    then unParty party
+                    else displayName
+            , " { party = "
+            , T.pack (show (unParty party))
+            , " }"
+            ]
+          | PartyDetails{..} <- partyDetails
+          ]
+        , ["  }"]
+        ]
 
 getDarPath :: IO FilePath
 getDarPath = do
     projectName <- getProjectName
-    return $ ".daml" </> "dist" </> projectName <> ".dar"
+    projectVersion <- getProjectVersion
+    return $ ".daml" </> "dist" </> projectName <> "-" <> projectVersion <> ".dar"
 
 doBuild :: IO ()
 doBuild = do
-    assistant <- getDamlAssistant
-    runProcess_ (shell $ unwords $ assistant : ["build"])
+    procConfig <- toAssistantCommand ["build"]
+    runProcess_ procConfig
 
 getProjectConfig :: IO ProjectConfig
 getProjectConfig = do
@@ -708,8 +885,34 @@ getProjectConfig = do
 getProjectName :: IO String
 getProjectName = do
     projectConfig <- getProjectConfig
-    requiredE "Project must have a name" $
+    requiredE "Failed to read project name from project config" $
         queryProjectConfigRequired ["name"] projectConfig
+
+getProjectVersion :: IO String
+getProjectVersion = do
+    projectConfig <- getProjectConfig
+    requiredE "Failed to read project version from project config" $
+        queryProjectConfigRequired ["version"] projectConfig
+
+getProjectParties :: IO [String]
+getProjectParties = do
+    projectConfig <- getProjectConfig
+    requiredE "Failed to read list of parties from project config" $
+        queryProjectConfigRequired ["parties"] projectConfig
+
+getProjectLedgerPort :: IO Int
+getProjectLedgerPort = do
+    projectConfig <- getProjectConfig
+    -- TODO: remove default; insist ledger-port is in the config ?!
+    defaultingE "Failed to parse ledger.port" 6865 $
+        queryProjectConfig ["ledger", "port"] projectConfig
+
+getProjectLedgerHost :: IO String
+getProjectLedgerHost = do
+    projectConfig <- getProjectConfig
+    defaultingE "Failed to parse ledger.host" "localhost" $
+        queryProjectConfig ["ledger", "host"] projectConfig
+
 
 -- | `waitForConnectionOnPort sleep port` keeps trying to establish a TCP connection on the given port.
 -- Between each connection request it calls `sleep`.
@@ -730,10 +933,11 @@ waitForConnectionOnPort sleep port = do
 
 -- | `waitForHttpServer sleep url` keeps trying to establish an HTTP connection on the given URL.
 -- Between each connection request it calls `sleep`.
-waitForHttpServer :: IO () -> String -> IO ()
-waitForHttpServer sleep url = do
+waitForHttpServer :: IO () -> String -> HTTP.RequestHeaders -> IO ()
+waitForHttpServer sleep url headers = do
     manager <- HTTP.newManager HTTP.defaultManagerSettings
     request <- HTTP.parseRequest $ "HEAD " <> url
+    request <- pure request { HTTP.requestHeaders = headers }
     untilJust $ do
         r <- tryJust (\e -> guard (isIOException e || isHttpException e)) $ HTTP.httpNoBody request manager
         case r of
@@ -748,3 +952,6 @@ sandboxPath = "sandbox/sandbox.jar"
 
 navigatorPath :: FilePath
 navigatorPath = "navigator/navigator.jar"
+
+jsonApiPath :: FilePath
+jsonApiPath = "json-api/json-api.jar"

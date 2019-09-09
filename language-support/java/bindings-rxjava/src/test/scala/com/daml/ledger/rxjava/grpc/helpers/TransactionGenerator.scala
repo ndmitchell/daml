@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.rxjava.grpc.helpers
@@ -149,12 +149,12 @@ object TransactionGenerator {
     (Sum.Int64(int64), new data.Int64(int64))
   }
 
-  val decimalValueGen: Gen[(Sum.Decimal, data.Decimal)] = for {
+  val decimalValueGen: Gen[(Sum.Numeric, data.Numeric)] = for {
     sign <- Gen.pick(1, List("", "+", "-"))
     leading <- Gen.choose(1, 9)
     decimals <- Gen.listOfN(37, Gen.choose(0, 9))
     text = s"${sign.head}$leading${decimals.take(27).mkString}.${decimals.drop(27).mkString}"
-  } yield (Sum.Decimal(text), new data.Decimal(new java.math.BigDecimal(text)))
+  } yield (Sum.Numeric(text), new data.Numeric(new java.math.BigDecimal(text)))
 
   val textValueGen: Gen[(Sum.Text, data.Text)] = Arbitrary.arbString.arbitrary.map { text =>
     (Sum.Text(text), new data.Text(text))

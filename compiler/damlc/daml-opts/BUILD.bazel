@@ -1,4 +1,4 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 load(
@@ -9,7 +9,7 @@ load(
 da_haskell_library(
     name = "daml-opts-types",
     srcs = ["daml-opts-types/DA/Daml/Options/Types.hs"],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "directory",
         "extra",
@@ -34,7 +34,7 @@ da_haskell_library(
 da_haskell_library(
     name = "daml-opts",
     srcs = ["daml-opts/DA/Daml/Options.hs"],
-    hazel_deps = [
+    hackage_deps = [
         "base",
         "directory",
         "extra",

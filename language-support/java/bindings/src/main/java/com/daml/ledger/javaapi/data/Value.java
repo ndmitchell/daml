@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.javaapi.data;
@@ -24,8 +24,8 @@ public abstract class Value {
                 return DamlList.fromProto(value.getList());
             case INT64:
                 return new Int64(value.getInt64());
-            case DECIMAL:
-                return Decimal.fromProto(value.getDecimal());
+            case NUMERIC:
+                return Numeric.fromProto(value.getNumeric());
             case TEXT:
                 return new Text(value.getText());
             case TIMESTAMP:
@@ -87,8 +87,13 @@ public abstract class Value {
         return (this instanceof Int64) ? Optional.of((Int64) this) : Optional.empty();
     }
 
+    @Deprecated
     public final Optional<Decimal> asDecimal() {
         return (this instanceof Decimal) ? Optional.of((Decimal) this) : Optional.empty();
+    }
+
+    public final Optional<Numeric> asNumeric() {
+        return (this instanceof Numeric) ? Optional.of((Numeric) this) : Optional.empty();
     }
 
     public final Optional<Text> asText() {

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.daml.ledger.javaapi.data
@@ -168,7 +168,7 @@ object Generators {
 
   def decimalValueGen: Gen[ValueOuterClass.Value] =
     Arbitrary.arbBigDecimal.arbitrary.map(d =>
-      ValueOuterClass.Value.newBuilder().setDecimal(d.bigDecimal.toPlainString).build())
+      ValueOuterClass.Value.newBuilder().setNumeric(d.bigDecimal.toPlainString).build())
 
   def eventGen: Gen[EventOuterClass.Event] =
     for {

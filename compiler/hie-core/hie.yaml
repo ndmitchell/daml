@@ -9,6 +9,8 @@ cradle:
       - -XBangPatterns
       - -XDeriveGeneric
       - -XGeneralizedNewtypeDeriving
+      - -XOverloadedStrings
+      - -XDeriveFunctor
       - -XLambdaCase
       - -XNamedFieldPuns
       - -XRecordWildCards
@@ -21,3 +23,6 @@ cradle:
       - -DGHC_STABLE
       - -isrc
       - -iexe
+      - -itest/cabal
+      - -itest/src
+      - -itest/exe

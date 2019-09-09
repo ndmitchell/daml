@@ -23,9 +23,9 @@ load("@com_google_protobuf//:protobuf_deps.bzl", "protobuf_deps")
 
 protobuf_deps()
 
-load("@io_tweag_rules_haskell//haskell:repositories.bzl", "haskell_repositories")
+load("@rules_haskell//haskell:repositories.bzl", "rules_haskell_dependencies")
 
-haskell_repositories()
+rules_haskell_dependencies()
 
 register_toolchains(
     "//:c2hs-toolchain",
@@ -44,6 +44,11 @@ load("//bazel_tools:os_info.bzl", "os_info")
 os_info(name = "os_info")
 
 load("@os_info//:os_info.bzl", "is_linux", "is_windows")
+load("//bazel_tools:ghc_dwarf.bzl", "ghc_dwarf")
+
+ghc_dwarf(name = "ghc_dwarf")
+
+load("@ghc_dwarf//:ghc_dwarf.bzl", "enable_ghc_dwarf")
 
 nixpkgs_local_repository(
     name = "nixpkgs",
@@ -204,11 +209,11 @@ dev_env_tool(
 )
 
 load(
-    "@io_tweag_rules_haskell//haskell:haskell.bzl",
+    "@rules_haskell//haskell:ghc_bindist.bzl",
     "haskell_register_ghc_bindists",
 )
 load(
-    "@io_tweag_rules_haskell//haskell:nixpkgs.bzl",
+    "@rules_haskell//haskell:nixpkgs.bzl",
     "haskell_register_ghc_nixpkgs",
 )
 
@@ -247,9 +252,17 @@ exports_files(glob(["lib/**/*"]))
     repositories = dev_env_nix_repos,
 ) if not is_windows else None
 
+common_ghc_flags = [
+    # We default to -c opt but we also want -O1 in -c dbg builds
+    # since we use them for profiling.
+    "-O1",
+    "-hide-package=ghc-boot-th",
+    "-hide-package=ghc-boot",
+]
+
 # Used by Darwin and Linux
 haskell_register_ghc_nixpkgs(
-    attribute_path = "ghcStatic",
+    attribute_path = "ghcStaticDwarf" if enable_ghc_dwarf else "ghcStatic",
     build_file = "@io_tweag_rules_nixpkgs//nixpkgs:BUILD.pkg",
 
     # -fexternal-dynamic-refs is required so that we produce position-independent
@@ -260,12 +273,9 @@ haskell_register_ghc_nixpkgs(
     # we get a similar behavior on Darwin by default.
     # However, we had to disable split-sections for now as it seems to interact very badly
     # with the GHCi linker to the point where :main takes several minutes rather than several seconds.
-    compiler_flags = [
-        "-O1",
+    compiler_flags = common_ghc_flags + [
         "-fexternal-dynamic-refs",
-        "-hide-package=ghc-boot-th",
-        "-hide-package=ghc-boot",
-    ],
+    ] + (["-g3"] if enable_ghc_dwarf else []),
     compiler_flags_select = {
         "@com_github_digital_asset_daml//:profiling_build": ["-fprof-auto"],
         "//conditions:default": [],
@@ -285,6 +295,7 @@ haskell_register_ghc_nixpkgs(
 
 # Used by Windows
 haskell_register_ghc_bindists(
+    compiler_flags = common_ghc_flags,
     version = "8.6.5",
 ) if is_windows else None
 
@@ -460,18 +471,42 @@ load("@bazel_skylib//lib:dicts.bzl", "dicts")
 # For the time being we build with GMP. See https://github.com/digital-asset/daml/issues/106
 use_integer_simple = not is_windows
 
-HASKELL_LSP_COMMIT = "d73e2ccb518724e6766833ee3d7e73289cbe0018"
+HASKELL_LSP_COMMIT = "bfbd8630504ebc57b70948689c37b85cfbe589da"
 
-HASKELL_LSP_HASH = "36b92431039e6289eb709b8872f5010a57d4a45e637e1c1c945bdb3128586081"
+HASKELL_LSP_HASH = "9a5c2871333a5e7e82abdf0bd8c3ab52a130d03832a899aee68bea993cdead1b"
 
-GHC_LIB_VERSION = "8.8.0.20190723"
+GRPC_HASKELL_COMMIT = "11681ec6b99add18a8d1315f202634aea343d146"
+
+GRPC_HASKELL_HASH = "c6201f4e2fd39f25ca1d47b1dac4efdf151de88a2eb58254d61abc2760e58fda"
+
+GHC_LIB_VERSION = "8.8.1.20190830"
 
 http_archive(
     name = "haskell_ghc__lib__parser",
     build_file = "//3rdparty/haskell:BUILD.ghc-lib-parser",
-    sha256 = "139c5b58d179a806640f8b56bc3fe8c70a893191dbfd111a593544e7ac71086b",
+    sha256 = "8e223494b9622cfd46282a9544626f66e477d7652551cce7186603bfaa18d15d",
     strip_prefix = "ghc-lib-parser-{}".format(GHC_LIB_VERSION),
     urls = ["https://digitalassetsdk.bintray.com/ghc-lib/ghc-lib-parser-{}.tar.gz".format(GHC_LIB_VERSION)],
+)
+
+http_archive(
+    name = "haskell_grpc__haskell__core",
+    build_file = "//3rdparty/haskell:BUILD.grpc-haskell-core",
+    patch_args = ["-p2"],
+    patches = [
+        "@com_github_digital_asset_daml//bazel_tools:grpc-haskell-core-mask-runops.patch",
+    ],
+    sha256 = GRPC_HASKELL_HASH,
+    strip_prefix = "gRPC-haskell-{}/core/".format(GRPC_HASKELL_COMMIT),
+    urls = ["https://github.com/awakesecurity/gRPC-haskell/archive/{}.tar.gz".format(GRPC_HASKELL_COMMIT)],
+)
+
+http_archive(
+    name = "haskell_grpc__haskell",
+    build_file = "//3rdparty/haskell:BUILD.grpc-haskell",
+    sha256 = GRPC_HASKELL_HASH,
+    strip_prefix = "gRPC-haskell-{}".format(GRPC_HASKELL_COMMIT),
+    urls = ["https://github.com/awakesecurity/gRPC-haskell/archive/{}.tar.gz".format(GRPC_HASKELL_COMMIT)],
 )
 
 hazel_repositories(
@@ -479,16 +514,17 @@ hazel_repositories(
         core_packages,
         {
             "integer-simple": "0.1.1.1",
-
-            # this is a core package, but not reflected in hazel/packages.bzl.
-            "haskeline": "0.7.4.2",
             "Win32": "2.6.1.0",
         },
     ),
     exclude_packages = [
-        "arx",
+        "bindings-DSL",
         "clock",
+        # Excluded since we build it via the http_archive line above.
+        "ghc-lib-parser",
         "ghc-paths",
+        "grpc-haskell",
+        "grpc-haskell-core",
         "streaming-commons",
         "wai-app-static",
         "zlib",
@@ -505,52 +541,45 @@ hazel_repositories(
         hazel_default_extra_libs,
         {
             "z": "@com_github_madler_zlib//:z",
-            "ffi": "" if is_windows else "@libffi_nix//:ffi",
+            "bz2": "@bzip2//:bz2",
         },
     ),
     ghc_workspaces = {
-        "k8": "@io_tweag_rules_haskell_ghc_nixpkgs",
-        "darwin": "@io_tweag_rules_haskell_ghc_nixpkgs",
+        "k8": "@rules_haskell_ghc_nixpkgs",
+        "darwin": "@rules_haskell_ghc_nixpkgs",
         # although windows is not quite supported yet
-        "x64_windows": "@io_tweag_rules_haskell_ghc_windows_amd64",
+        "x64_windows": "@rules_haskell_ghc_windows_amd64",
     },
     packages = add_extra_packages(
         extra =
 
-            # Read [Working on ghc-lib] for ghc-lib update
-            # instructions at
-            # https://github.com/DACH-NY/daml/blob/master/ghc-lib/working-on-ghc-lib.md.
-            hazel_ghclibs(GHC_LIB_VERSION, "139c5b58d179a806640f8b56bc3fe8c70a893191dbfd111a593544e7ac71086b", "7cfbe3bd12fb38685b86096ad666790326020308138eaf49198631b8792f5b2a") +
+            # Read [Working on ghc-lib] for ghc-lib update instructions at
+            # https://github.com/digital-asset/daml/blob/master/ghc-lib/working-on-ghc-lib.md.
+            hazel_ghclibs(GHC_LIB_VERSION, "8e223494b9622cfd46282a9544626f66e477d7652551cce7186603bfaa18d15d", "9fa2ea51c634c0d9b2a4b132abdec398c6b2eb0150821ac5664abff2fe63373d") +
+            hazel_github_external("digital-asset", "hlint", "783df11bb08d88f069cc22a698d7bc38323bd32d", "10ec5ba641eca0505ed2aa3367221c9ec4bc7467bbb3f41668407fd337d5c30e") +
+            hazel_github_external("awakesecurity", "proto3-wire", "4f355bbac895d577d8a28f567ab4380f042ccc24", "031e05d523a887fbc546096618bc11dceabae224462a6cdd6aab11c1658e17a3") +
+            hazel_github_external(
+                "awakesecurity",
+                "proto3-suite",
+                "f5ca2bee361d518de5c60b9d05d0f54c5d2f22af",
+                "6a803b1655824e5bec2c518b39b6def438af26135d631b60c9b70bf3af5f0db2",
+            ) +
 
-            # Support for Hlint:
-            #   - Requires haskell-src-exts 1.21.0 so override hazel/packages.bzl.
-            #   - To build the binary : `bazel build @haskell_hlint//:bin`
-            #   - To build the library : `bazel build @haskell_hlint//:lib`
-            # We'll be using it via the library, not the binary.
-            hazel_hackage("haskell-src-exts", "1.21.0", "95dac187824edfa23b6a2363880b5e113df8ce4a641e8a0f76e6d45aaa699ff3") +
-            hazel_github_external("digital-asset", "hlint", "ba2fcd7d926ca6d365a4d0b2c6bc001f84d022b6", "c2693600d7b5912c763907d76eb91fc432a74355e5646313ba1097513340d8fe") +
-            hazel_github_external("awakesecurity", "proto3-wire", "43d8220dbc64ef7cc7681887741833a47b61070f", "1c3a7fbf4ab3308776675c6202583f9750de496757f3ad4815e81edd122d75e1") +
-            hazel_github_external("awakesecurity", "proto3-suite", "dd01df7a3f6d0f1ea36125a67ac3c16936b53da0", "59ea7b876b14991347918eefefe24e7f0e064b5c2cc14574ac4ab5d6af6413ca") +
-            hazel_hackage("happy", "1.19.10", "22eb606c97105b396e1c7dc27e120ca02025a87f3e44d2ea52be6a653a52caed") +
+            # Not in stackage
             hazel_hackage("bytestring-nums", "0.3.6", "bdca97600d91f00bb3c0f654784e3fbd2d62fcf4671820578105487cdf39e7cd") +
-            hazel_hackage("semver", "0.3.4", "42dbdacb08f30ac8bf2f014981cb080737f793b89d57626cb7e2ab8c3d768e6b") +
+            # In Stackage but we want the latest version.
             hazel_hackage(
                 "network",
-                "2.8.0.0",
-                "c8905268b7e3b4cf624a40245bf11b35274a6dd836a5d4d531b5760075645303",
+                "2.8.0.1",
+                "61f55dbfed0f0af721a8ea36079e9309fcc5a1be20783b44ae500d9e4399a846",
                 patches = ["@ai_formation_hazel//third_party/haskell:network.patch"],
             ) +
-            hazel_hackage("terminal-progress-bar", "0.4.1", "a61ca10c92cacc712dbbe28881dc23f41cc139760b7b2eef66bd0faa60ea5e24") +
-            hazel_hackage("rope-utf16-splay", "0.3.1.0", "cbf878098355441ed7be445466fcb72d45390073a298b37649d762de2a7f8cc6") +
-            # This corresponds to our normalize-uri branch that enforces a consistent
-            # precent-encoding for URIs used as keys.
             hazel_github_external(
                 "alanz",
                 "haskell-lsp",
                 HASKELL_LSP_COMMIT,
                 HASKELL_LSP_HASH,
-            ) +
-            hazel_github_external(
+            ) + hazel_github_external(
                 "alanz",
                 "haskell-lsp",
                 HASKELL_LSP_COMMIT,
@@ -558,22 +587,37 @@ hazel_repositories(
                 name = "haskell-lsp-types",
                 directory = "/haskell-lsp-types/",
             ) +
-            # This corresponds to our custom-methods branch which makes
-            # lsp-test work with the custom methods changes in haskell-lsp.
-            hazel_github(
-                "lsp-test",
-                "50c43452e19e494d71ccba1f7922d0b3b3fc69c3",
-                "65a56b35ddc8fa4deab10ac42efcdcbd36e875b715bb504d10b020a1e5fffd2c",
-            ) +
+            # lsp-test’s cabal file relies on haskell-lsp reexporting haskell-lsp-types.
+            # Hazel does not handle that for now, so we patch the cabal file
+            # to add an explicit dependency on haskell-lsp-types.
             hazel_github_external(
+                "bubba",
+                "lsp-test",
+                "d126623dc6895d325e3d204d74e2a22d4f515587",
+                "214848612d319bbded67341c51fd151d65cc80264b9cfe70755ef6941b450ec9",
+                patch_args = ["-p1"],
+                patches = ["@com_github_digital_asset_daml//bazel_tools:haskell-lsp-test-no-reexport.patch"],
+            ) + hazel_github_external(
                 "mpickering",
                 "hie-bios",
-                "8427e424a83c2f3d60bdd26c02478c00d2189a73",
-                "c593ff871f31200e37a3c24c09da314d0ee41a8486defe7af91ac55a26efdc1e",
+                "7a75f520b2e7a482440edd023be8e267a0fa153f",
+                "782469b30bb06cf26873e1c84bd58c8427020ff5777f4ef9d84c75cd26e3ea23",
                 patch_args = ["-p1"],
                 patches = ["@com_github_digital_asset_daml//bazel_tools:haskell-hie-bios.patch"],
             ) +
-            hazel_hackage("typed-process", "0.2.6.0", "31a2a81f33463fedc33cc519ad5b9679787e648fe2ec7efcdebd7d54bdbbc2b1"),
+            hazel_hackage(
+                "c2hs",
+                "0.28.6",
+                "91dd121ac565009f2fc215c50f3365ed66705071a698a545e869041b5d7ff4da",
+                patch_args = ["-p1"],
+                patches = ["@com_github_digital_asset_daml//bazel_tools:haskell-c2hs.patch"],
+            ) + hazel_hackage(
+                "bzlib-conduit",
+                "0.3.0.2",
+                "eb2c732b3d4ab5f7b367c51eef845e597ade19da52c03ee11954d35b6cfc4128",
+                patch_args = ["-p1"],
+                patches = ["@com_github_digital_asset_daml//3rdparty/haskell:bzlib-conduit.patch"],
+            ),
         pkgs = packages,
     ),
 )
@@ -599,6 +643,15 @@ hazel_custom_package_hackage(
 )
 
 hazel_custom_package_hackage(
+    package_name = "bindings-DSL",
+    # Without a custom build file, packages depending on bindings-DSL
+    # fail to find bindings.dsl.h.
+    build_file = "//3rdparty/haskell:BUILD.bindings-DSL",
+    sha256 = "63de32380c68d1cc5e9c7b3622d67832c786da21163ba0c8a4835e6dd169194f",
+    version = "1.0.25",
+)
+
+hazel_custom_package_hackage(
     package_name = "streaming-commons",
     build_file = "//3rdparty/haskell:BUILD.streaming-commons",
     sha256 = "d8d1fe588924479ea7eefce8c6af77dfb373ee6bde7f4691bdfcbd782b36d68d",
@@ -612,16 +665,6 @@ hazel_custom_package_github(
     github_user = "nmattia-da",
     repo_sha = "05179164831432f207f3d43580c51161d519d191",
     strip_prefix = "wai-app-static",
-)
-
-hazel_custom_package_github(
-    package_name = "arx",
-    build_file = "//3rdparty/haskell:BUILD.arx",
-    github_repo = "arx",
-    github_user = "solidsnack",
-    patch_args = ["-p1"],
-    patches = ["@com_github_digital_asset_daml//bazel_tools:haskell-arx.patch"],
-    repo_sha = "7561fed76bb613302d1ae104f0eb2ad13daa9fac",
 )
 
 load("//bazel_tools:java.bzl", "java_home_runtime")
@@ -641,28 +684,6 @@ nixpkgs_package(
         visibility = ["//visibility:public"],
     )
     """,
-    nix_file = "//nix:bazel.nix",
-    nix_file_deps = common_nix_file_deps,
-    repositories = dev_env_nix_repos,
-)
-
-nixpkgs_package(
-    name = "libffi_nix",
-    attribute_path = "libffi.dev",
-    build_file_content = """
-package(default_visibility = ["//visibility:public"])
-
-filegroup(
-    name = "include",
-    srcs = glob(["include/**/*.h"]),
-)
-
-cc_library(
-    name = "ffi",
-    hdrs = [":include"],
-    strip_include_prefix = "include",
-)
-""",
     nix_file = "//nix:bazel.nix",
     nix_file_deps = common_nix_file_deps,
     repositories = dev_env_nix_repos,
@@ -808,6 +829,14 @@ jar_jar_repositories()
 load("@com_github_grpc_grpc//bazel:grpc_deps.bzl", "grpc_deps")
 
 grpc_deps()
+
+load("@upb//bazel:workspace_deps.bzl", "upb_deps")
+
+upb_deps()
+
+load("@build_bazel_rules_apple//apple:repositories.bzl", "apple_rules_dependencies")
+
+apple_rules_dependencies()
 
 load("@com_github_bazelbuild_buildtools//buildifier:deps.bzl", "buildifier_dependencies")
 

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.speedy
@@ -23,11 +23,12 @@ import java.util.ArrayList
   * - multi-argument applications and abstractions.
   * - all update and scenario operations converted to builtin functions.
   */
-sealed trait SExpr {
-  def apply(args: SExpr*): SExpr =
-    SExpr.SEApp(this, args.toArray)
-
+sealed abstract class SExpr extends Product with Serializable {
   def execute(machine: Machine): Ctrl
+
+  @SuppressWarnings(Array("org.wartremover.warts.Any"))
+  override def toString: String =
+    productPrefix + productIterator.map(SExpr.prettyPrint).mkString("(", ",", ")")
 }
 
 @SuppressWarnings(Array("org.wartremover.warts.Any"))
@@ -48,7 +49,7 @@ object SExpr {
     */
   final case class SEVal(
       ref: SDefinitionRef,
-      var cached: Option[SValue]
+      var cached: Option[(SValue, List[Location])]
   ) extends SExpr {
     def execute(machine: Machine): Ctrl = {
       machine.lookupVal(this)
@@ -121,6 +122,8 @@ object SExpr {
       machine.kont.add(KMatch(alts))
       CtrlExpr(scrut)
     }
+
+    override def toString: String = s"SECase($scrut, ${alts.mkString("[", ",", "]")})"
   }
 
   object SECase {
@@ -181,7 +184,7 @@ object SExpr {
     */
   final case class SELocation(loc: Location, expr: SExpr) extends SExpr {
     def execute(machine: Machine): Ctrl = {
-      machine.lastLocation = Some(loc)
+      machine.pushLocation(loc)
       CtrlExpr(expr)
     }
   }
@@ -287,13 +290,18 @@ object SExpr {
           SCaseAlt(
             SCPCons,
             // foldl f (f z y) ys
-            FoldL(
-              SEVar(5), /* f */
-              SEVar(5)(
-                SEVar(4) /* z */,
-                SEVar(2) /* y */
-              ),
-              SEVar(1)) /* ys */
+            SEApp(
+              FoldL,
+              Array(
+                SEVar(5), /* f */
+                SEApp(
+                  SEVar(5),
+                  Array(
+                    SEVar(4) /* z */,
+                    SEVar(2) /* y */
+                  )),
+                SEVar(1) /* ys */
+              ))
           )
         )
       )
@@ -304,24 +312,27 @@ object SExpr {
         Array(),
         3,
         // case xs of
-        SECase(SEVar(1)) of (
-          // nil -> z
-          SCaseAlt(SCPNil, SEVar(2)),
-          // cons y ys ->
-          SCaseAlt(
-            SCPCons,
-            // f y (foldr f z ys)
-            SEVar(5)(
+        SECase(SEVar(1)) of (// nil -> z
+        SCaseAlt(SCPNil, SEVar(2)),
+        // cons y ys ->
+        SCaseAlt(
+          SCPCons,
+          // f y (foldr f z ys)
+          SEApp(
+            SEVar(5),
+            Array(
               /* f */
               SEVar(2), /* y */
-              FoldR(
-                /* foldr f z ys */
-                SEVar(5), /* f */
-                SEVar(4), /* z */
-                SEVar(1) /* ys */
-              ))
-          )
-        )
+              SEApp(
+                FoldR,
+                Array(
+                  /* foldr f z ys */
+                  SEVar(5), /* f */
+                  SEVar(4), /* z */
+                  SEVar(1) /* ys */
+                ))
+            ))
+        ))
       )
 
     private val equalListBody: SExpr =
@@ -352,8 +363,10 @@ object SExpr {
               SCaseAlt(
                 SCPCons,
                 // case f x y of
-                SECase(SEVar(7)(SEVar(4), SEVar(2))) of (
-                  SCaseAlt(SCPPrimCon(PCTrue), EqualList(SEVar(7), SEVar(1), SEVar(3))),
+                SECase(SEApp(SEVar(7), Array(SEVar(4), SEVar(2)))) of (
+                  SCaseAlt(
+                    SCPPrimCon(PCTrue),
+                    SEApp(EqualList, Array(SEVar(7), SEVar(1), SEVar(3)))),
                   SCaseAlt(SCPPrimCon(PCFalse), SEValue.False)
                 )
               )
@@ -362,5 +375,13 @@ object SExpr {
         )
       )
   }
+
+  private def prettyPrint(x: Any): String =
+    x match {
+      case i: Array[Any] => i.mkString("[", ",", "]")
+      case i: Array[Int] => i.mkString("[", ",", "]")
+      case i: java.util.ArrayList[_] => i.toArray().mkString("[", ",", "]")
+      case other: Any => other.toString
+    }
 
 }

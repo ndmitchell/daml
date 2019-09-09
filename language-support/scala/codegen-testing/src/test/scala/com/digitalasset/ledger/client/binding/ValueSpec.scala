@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client.binding
@@ -62,7 +62,7 @@ object ValueSpec {
 
   private[this] object TautologicalValueChecks extends ValuePrimitiveEncoding[ValueCheck] {
     override val valueInt64 = ValueCheck[P.Int64]("Int64")
-    override val valueDecimal = ValueCheck[P.Decimal]("Decimal")
+    override val valueNumeric = ValueCheck[P.Numeric]("Numeric")
     override val valueParty = {
       implicit val PA: Arbitrary[P.Party] = Arbitrary(GenEncoding.primitive.valueParty)
       ValueCheck[P.Party]("Party")

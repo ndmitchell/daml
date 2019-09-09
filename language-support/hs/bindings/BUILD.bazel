@@ -1,19 +1,21 @@
-# Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+# Copyright (c) 2019 The DAML Authors. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
 load("//bazel_tools:haskell.bzl", "da_haskell_binary", "da_haskell_library", "da_haskell_repl", "da_haskell_test")
 load("//rules_daml:daml.bzl", "daml_compile")
+load("@os_info//:os_info.bzl", "is_windows")
 
 da_haskell_library(
     name = "hs-ledger",
     srcs = glob(["src/**/*.hs"]),
-    hazel_deps = [
+    hackage_deps = [
         "async",
         "base",
         "bytestring",
         "containers",
         "exceptions",
         "extra",
+        "grpc-haskell",
         "proto3-suite",
         "retry",
         "text",
@@ -24,18 +26,14 @@ da_haskell_library(
     ],
     visibility = ["//visibility:public"],
     deps = [
-        "//compiler/daml-lf-ast",
-        "//compiler/daml-lf-proto",
-        "//daml-lf/archive:daml_lf_haskell_proto",
         "//ledger-api/grpc-definitions:ledger-api-haskellpb",
-        "//nix/third-party/gRPC-haskell:grpc-haskell",
     ],
 )
 
 daml_compile(
-    name = "quickstart",
-    srcs = glob(["test/daml/quickstart/*.daml"]),
-    main_src = "test/daml/quickstart/Main.daml",
+    name = "for-tests",
+    srcs = glob(["test/daml/for-tests/*.daml"]),
+    main_src = "test/daml/for-tests/Main.daml",
 )
 
 daml_compile(
@@ -48,12 +46,13 @@ da_haskell_test(
     name = "test",
     srcs = glob(["test/**/*.hs"]),
     data = [
+        ":for-tests.dar",
         ":for-upload.dar",
-        ":quickstart.dar",
         "//ledger/sandbox:sandbox-binary",
     ],
-    flaky = True,  # FIXME Remove this once #1927 is solved
-    hazel_deps = [
+    # The tests are flaky probably due to issues in gRPC-haskell.
+    flaky = True,
+    hackage_deps = [
         "async",
         "base",
         "bytestring",

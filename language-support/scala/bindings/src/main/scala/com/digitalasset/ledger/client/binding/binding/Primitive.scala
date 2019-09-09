@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.ledger.client.binding
@@ -16,7 +16,7 @@ import java.util.TimeZone
 
 sealed abstract class Primitive {
   type Int64 = Long
-  type Decimal = BigDecimal
+  type Numeric = BigDecimal
   type Party = ApiTypes.Party
   val Party: ApiTypes.Party.type = ApiTypes.Party
   type Text = String

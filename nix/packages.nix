@@ -98,8 +98,6 @@ in rec {
     scalafmt = pkgs.callPackage ./overrides/scalafmt.nix { jre = jdk; };
     dependency-check = (pkgs.callPackage ./tools/dependency-check { });
 
-    gradle = pkgs.gradle;
-
     # Nix development
     cabal2nix = pkgs.cabal2nix;
 
@@ -263,7 +261,7 @@ in rec {
       inherit (pkgs.python37Packages)
         pyyaml semver GitPython;
     };
-    # Packages used in command-line tools, e.g. `dade-info`.
+    # Packages used in command-line tools
     cli-tools = {
       inherit (pkgs) coreutils nix-info getopt;
     };

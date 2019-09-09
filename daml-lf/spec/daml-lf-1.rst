@@ -1,4 +1,4 @@
-.. Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+.. Copyright (c) 2019 The DAML Authors. All rights reserved.
 .. SPDX-License-Identifier: Apache-2.0
 
 Copyright © 2019, `Digital Asset (Switzerland) GmbH
@@ -72,12 +72,12 @@ to interpret previous versions of the language in a backward
 compatibility way.
 
 In the following of this document, we will use annotations between
-square brackets such as *[Available since version x.y]* and *[Changed
-in version x.y]* to emphasize that a particular feature is concerned
-with a change introduced in DAML x.y version. In addition, we will
-mark lines within inference rules with annotations of the form
-``[DAML-LF < x.y]`` and ``[DAML-LF ≥ x.y]`` to make the respective
-line conditional upon the DAML-LF version.
+square brackets such as *[Available in version < x.y]*, *[Available in
+versions >= x.y]*, and *[Changed in version x.y]* to emphasize that a
+particular feature is concerned with a change introduced in DAML x.y
+version. In addition, we will mark lines within inference rules with
+annotations of the form ``[DAML-LF < x.y]`` and ``[DAML-LF ≥ x.y]`` to
+make the respective line conditional upon the DAML-LF version.
 
 The version 1.dev is a special staging area for the next 1.x version to
 be released. Compliant implementations are not required to implement any
@@ -224,20 +224,17 @@ Version: 1.6
 
   * **Add** intern package IDs in external package references.
 
+Version: 1.dev
+..............
+
   * **Change** Transaction submitter must be in the contract key
     maintainers when performing lookup or fetches by key. See
     `issue #1866 <https://github.com/digital-asset/daml/issues/1866>`_
 
-Version: 1.dev
-..............
+  * **Add** Nat kind and Nat type.
 
-  * Description:
-
-    * **Add** Nat kind and Nat type.
-
-    * **Replace** fixed scaled 'Decimal' type by parametric scaled
-      'Numeric' typer.
-
+  * **Replace** fixed scaled 'Decimal' type by parametrically scaled
+    'Numeric' type.
 
 Abstract syntax
 ^^^^^^^^^^^^^^^
@@ -369,20 +366,20 @@ and other similar pitfalls. ::
 
 We can now define all the literals that a program can handle::
 
-  Nat type literals:                                -- LitNatType  
-       n ∈ \d+                                         
-  
-  64-bits integer literals:
-        LitInt64  ∈ (-?)\d+                         -- LitInt64:
+  Nat type literals:                                -- LitNatType
+       n ∈  \d+
+
+  64-bit integer literals:
+        LitInt64  ∈  (-?)\d+                         -- LitInt64:
 
   Numeric literals:
       LitNumeric  ∈  ([+-]?)([1-9]\d+|0).\d*        -- LitNumeric
 
   Date literals:
-         LitDate  ∈  \d{4}-\d{4}-\d{4}               -- LitDate
+         LitDate  ∈  \d{4}-\d{2}-\d{2}               -- LitDate
 
   UTC timestamp literals:
-     LitTimestamp ∈ \d{4}-\d{4}-\d{4}T\d{2}:\d{2}:\d{2}(.\d{1,3})?Z
+     LitTimestamp ∈  \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(.\d{1,3})?Z
                                                      -- LitTimestamp
   UTF8 string literals:
          LitText ::= String                          -- LitText
@@ -494,8 +491,8 @@ Also note that package identifiers are typically `cryptographic hash
 <Package hash_>`_ of the content of the package itself.
 
 
-Kinds, types and, expression
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Kinds, types, and expressions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. TODO We might want to consider changing the syntax for ``Mod``,
    since in our software we use the colon to separate the module name
@@ -534,7 +531,7 @@ Then we can define our kinds, types, and expressions::
   Types (mnemonic: tau for type)
     τ, σ
       ::= α                                         -- TyVar: Type variable
-       |  n                                         -- TNat: Nat Type
+       |  n                                         -- TyNat: Nat Type
        |  τ σ                                       -- TyApp: Type application
        |  ∀ α : k . τ                               -- TyForall: Universal quantification
        |  BuiltinType                               -- TyBuiltin: Builtin type
@@ -556,13 +553,13 @@ Then we can define our kinds, types, and expressions::
        |  'Cons' @τ e₁ e₂                           -- ExpListCons: Cons list
        |  'None' @τ                                 -- ExpOptionNone: Empty Option
        |  'Some' @τ e                               -- ExpOptionSome: Non-empty Option
-       |  LitInt64                                  -- ExpLitInt64: 64-bit bit literal
+       |  LitInt64                                  -- ExpLitInt64: 64-bit integer literal
        |  LitNumeric                                -- ExpLitNumeric: Numeric literal
        |  LitText                                   -- ExpLitText: UTF-8 string literal
-       |  LitDate                                   -- ExpLitDate: date literal
+       |  LitDate                                   -- ExpLitDate: Date literal
        |  LitTimestamp                              -- ExpLitTimestamp: UTC timestamp literal
-       |  LitParty                                  -- ExpLitParty: party literal
-       |  cid                                       -- ExpLitContractId: contract identifiers
+       |  LitParty                                  -- ExpLitParty: Party literal
+       |  cid                                       -- ExpLitContractId: Contract identifiers
        |  F                                         -- ExpBuiltin: Builtin function
        |  Mod:W                                     -- ExpVal: Defined value
        |  Mod:T @τ₁ … @τₙ { f₁ = e₁, …, fₘ = eₘ }   -- ExpRecCon: Record construction
@@ -731,9 +728,9 @@ First, we formally defined *well-formed types*. ::
     ————————————————————————————————————————————— TyVar
       Γ  ⊢  α  :  k
 
-    ————————————————————————————————————————————— TyVar
+    ————————————————————————————————————————————— TyNat
       Γ  ⊢  n  :  'nat'
-      
+
       Γ  ⊢  τ  :  k₁ → k₂      Γ  ⊢  σ  :  k₂
     ————————————————————————————————————————————— TyApp
       Γ  ⊢  τ σ  :  k₁
@@ -1167,7 +1164,7 @@ for the ``DefTemplate`` rule). ::
     ⊢  'val' W : τ ↦ e
 
     'record' T ↦ { f₁ : τ₁, …, fₙ : tₙ }  ∈  〚Ξ〛Mod
-    ε  ⊢  Mod:T  :  ⋆
+    ⊢ₛ  Mod:T
     x : Mod:T  ⊢  eₚ  :  'Bool'
     x : Mod:T  ⊢  eₛ  :  'List' 'Party'
     x : Mod:T  ⊢  eₒ  :  'List' 'Party'
@@ -1190,7 +1187,7 @@ for the ``DefTemplate`` rule). ::
     ⊢ₛ  τ
     ⊢ₛ  σ
     x : Mod:T  ⊢  eₚ  :  'List' 'Party'     x ≠ y                        [DAML-LF < 1.2]
-    y : τ · x : Mod:T  ⊢  eₚ  :  'List' 'Party'                         [DAML-LF ≥ 1.2]
+    y : τ · x : Mod:T  ⊢  eₚ  :  'List' 'Party'                          [DAML-LF ≥ 1.2]
     z : 'ContractId' Mod:T · y : τ · x : Mod:T  ⊢  e  :  'Update' σ
   ——————————————————————————————————————————————————————————————— ChDef
     x : Mod:T  ⊢  'choice' ChKind Ch (y : τ) (z : 'ContractId' Mod:T) : σ 'by' eₚ ↦ e
@@ -2106,21 +2103,21 @@ Int64 functions
   in ``Some``. If the input does not match the regexp ``[+-]?\d+`` or
   if the result of the conversion overflows, returns ``None``.
 
-  [*Available since version 1.5*]
+  [*Available in versions >= 1.5*]
 
 Numeric functions
 ~~~~~~~~~~~~~~~~~
 
 * ``ADD_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α  → 'Numeric' α``
 
-  Adds the two decimals.  The scale of the inputs and the ouput is
+  Adds the two decimals.  The scale of the inputs and the output is
   given by the type parameter `α`.  Throws an error in case of
   overflow.
 
 * ``SUB_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Numeric' α``
 
   Subtracts the second decimal from the first one.  The
-  scale of the inputs and the ouput is given by the type parameter
+  scale of the inputs and the output is given by the type parameter
   `α`.  Throws an error if overflow.
 
 * ``MUL_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Numeric' α``
@@ -2128,7 +2125,7 @@ Numeric functions
   Multiplies the two decimals and rounds the result to the closest
   multiple of ``10⁻ᵅ`` using `banker's rounding convention
   <https://en.wikipedia.org/wiki/Rounding#Round_half_to_even>`_.  The
-  scale of the inputs and the ouput is given by the type parameter
+  scale of the inputs and the output is given by the type parameter
   `α`. Throws an error in case of overflow.
 
 * ``DIV_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Numeric' α``
@@ -2137,7 +2134,7 @@ Numeric functions
   the closest multiple of ``10⁻ᵅ`` using `banker's rounding convention
   <https://en.wikipedia.org/wiki/Rounding#Round_half_to_even>`_ (where
   `n` is given as the type parameter).  The scale of the inputs and
-  the ouput is given by the type parameter `α`.  Throws an error in
+  the output is given by the type parameter `α`.  Throws an error in
   case of overflow.
 
 * ``ROUND_NUMERIC : ∀ (α : nat) . 'Int64' → 'Numeric' α → 'Numeric' α``
@@ -2147,56 +2144,55 @@ Numeric functions
   half-way between two multiples, rounds toward the even one,
   following the `banker's rounding convention
   <https://en.wikipedia.org/wiki/Rounding#Round_half_to_even>`_.  The
-  scale of the inputs and the ouput is given by the type parameter
+  scale of the inputs and the output is given by the type parameter
   `α`.  Throws an exception if the integer is not between `α-37` and
   `α` inclusive.
 
 * ``LESS_EQ_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is less or equal than the
+  Returns ``'True'`` if the first numeric is less or equal than the
   second, ``'False'`` otherwise.  The scale of the inputs is given by
   the type parameter `α`.
 
 * ``GREATER_EQ_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is greater or equal than the
+  Returns ``'True'`` if the first numeric is greater or equal than the
   second, ``'False'`` otherwise. The scale of the inputs is given by
   the type parameter `α`.
 
 * ``LESS_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is strictly less than the
+  Returns ``'True'`` if the first numeric is strictly less than the
   second, ``'False'`` otherwise.  The scale of the inputs is given by
   the type parameter `α`.
 
-
 * ``GREATER_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is strictly greater than the
+  Returns ``'True'`` if the first numeric is strictly greater than the
   second, ``'False'`` otherwise.  The scale of the inputs is given by
   the type parameter `α`.
 
 * ``EQUAL_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Numeric' α → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is equal to the second,
+  Returns ``'True'`` if the first numeric is equal to the second,
   ``'False'`` otherwise.  The scale of the inputs is given by the type
   parameter `α`.
 
 * ``TO_TEXT_NUMERIC : ∀ (α : nat) . 'Numeric' α → 'Text'``
 
-  Returns the decimal string representation of the decimal.  The scale
+  Returns the numeric string representation of the numeric.  The scale
   of the input is given by the type parameter `α`.
 
 * ``FROM_TEXT_NUMERIC : ∀ (α : nat) .'Text' → 'Optional' 'Numeric' α``
 
-  Given a string representation of a decimal returns the decimal
+  Given a string representation of a numeric returns the numeric
   wrapped in ``Some``. If the input does not match the regexp
   ``[+-]?\d+(\.d+)?`` or if the result of the conversion cannot
   be mapped into a decimal without loss of precision, returns
   ``None``.  The scale of the output is given by the type parameter
   `α`.
 
-  [*Available since version 1.5*]
+  [*Available in versions >= 1.5*]
 
 String functions
 ~~~~~~~~~~~~~~~~
@@ -2221,31 +2217,31 @@ String functions
   hashing of the UTF-8 string and returns it encoded as a Hexadecimal
   string (lower-case).
 
-  [*Available since version 1.2*]
+  [*Available in versions >= 1.2*]
 
 * ``LESS_EQ_TEXT : 'Text' → 'Text' → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is lexicographically less
+  Returns ``'True'`` if the first string is lexicographically less
   or equal than the second, ``'False'`` otherwise.
 
 * ``GREATER_EQ_TEXT : 'Text' → 'Text' → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is lexicographically
+  Returns ``'True'`` if the first string is lexicographically
   greater or equal than the second, ``'False'`` otherwise.
 
 * ``LESS_TEXT : 'Text' → 'Text' → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is lexicographically
+  Returns ``'True'`` if the first string is lexicographically
   strictly less than the second, ``'False'`` otherwise.
 
 * ``GREATER_TEXT : 'Text' → 'Text' → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is lexicographically
+  Returns ``'True'`` if the first string is lexicographically
   strictly greater than the second, ``'False'`` otherwise.
 
 * ``EQUAL_TEXT : 'Text' → 'Text' → 'Bool'``
 
-  Returns ``'True'`` if the first decimal is equal to the second,
+  Returns ``'True'`` if the first string is equal to the second,
   ``'False'`` otherwise.
 
 * ``TO_TEXT_TEXT : 'Text' → 'Text'``
@@ -2258,7 +2254,7 @@ String functions
   <https://en.wikipedia.org/wiki/Code_point>`_ of the input
   string represented as integer.
 
-  [*Available since version 1.6*]
+  [*Available in versions >= 1.6*]
 
 * ``TEXT_TO_CODE_POINTS``: 'List' 'Int64' → 'Text'
 
@@ -2268,7 +2264,7 @@ String functions
   from `0x000000` to `0x00D7FF` or in the range from `0x00DFFF`
   to `0x10FFFF` (bounds included).
 
-  [*Available since version 1.6*]
+  [*Available in versions >= 1.6*]
 
 Timestamp functions
 ~~~~~~~~~~~~~~~~~~~
@@ -2387,22 +2383,22 @@ Party functions
 * ``LESS_EQ_PARTY : 'Party' → 'Party' → 'Bool'``
 
   Returns ``'True'`` if the first party is less or equal than the
-  second, ``'False'`` otherwise. [*Available since version 1.1*]
+  second, ``'False'`` otherwise. [*Available in versions >= 1.1*]
 
 * ``GREATER_EQ_PARTY : 'Party' → 'Party' → 'Bool'``
 
   Returns ``'True'`` if the first party is greater or equal than the
-  second, ``'False'`` otherwise. [*Available since version 1.1*]
+  second, ``'False'`` otherwise. [*Available in versions >= 1.1*]
 
 * ``LESS_PARTY : 'Party' → 'Party' → 'Bool'``
 
   Returns ``'True'`` if the first party is strictly less than the
-  second, ``'False'`` otherwise. [*Available since version 1.1*]
+  second, ``'False'`` otherwise. [*Available in versions >= 1.1*]
 
 * ``GREATER_PARTY : 'Party' → 'Party' → 'Bool'``
 
   Returns ``'True'`` if the first party is strictly greater than the
-  second, ``'False'`` otherwise. [*Available since version 1.1*]
+  second, ``'False'`` otherwise. [*Available in versions >= 1.1*]
 
 * ``EQUAL_PARTY : 'Party' → 'Party' → 'Bool'``
 
@@ -2425,14 +2421,14 @@ Party functions
     ∀ p. FROM_TEXT_PARTY (TO_TEXT_PARTY p) = 'Some' p
     ∀ txt p. FROM_TEXT_PARTY txt = 'Some' p → TO_TEXT_PARTY p = txt
 
-  [*Available since version 1.2*]
+  [*Available in versions >= 1.2*]
 
 * ``FROM_TEXT_PARTY : 'Text' → 'Optional' 'Party'``
 
   Given the string representation of the party, returns the party,
   if the input string is a `PartyId strings <Literals_>`_.
 
-  [*Available since version 1.2*]
+  [*Available in versions >= 1.2*]
 
 ContractId functions
 ~~~~~~~~~~~~~~~~~~~~
@@ -2446,7 +2442,7 @@ ContractId functions
 
   Returns the given contract id unchanged at a different type.
 
-  [*Available since version 1.5*]
+  [*Available in versions >= 1.5*]
 
 List functions
 ~~~~~~~~~~~~~~
@@ -2469,59 +2465,59 @@ List functions
 Map functions
 ~~~~~~~~~~~~~
 
- * ``MAP_EMPTY : ∀ α. 'Map' α``
+* ``MAP_EMPTY : ∀ α. 'Map' α``
 
-   Returns the empty map.
+  Returns the empty map.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
- * ``MAP_INSERT : ∀ α.  'Text' → α → 'Map' α → 'Map' α``
+* ``MAP_INSERT : ∀ α.  'Text' → α → 'Map' α → 'Map' α``
 
-   Inserts a new key and value in the map. If the key is already
-   present in the map, the associated value is replaced with the
-   supplied value.
+  Inserts a new key and value in the map. If the key is already
+  present in the map, the associated value is replaced with the
+  supplied value.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
- * ``MAP_LOOKUP : ∀ α. 'Text' → 'Map' α → 'Optional' α``
+* ``MAP_LOOKUP : ∀ α. 'Text' → 'Map' α → 'Optional' α``
 
-   Lookups the value at a key in the map.
+  Lookups the value at a key in the map.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
- * ``MAP_DELETE : ∀ α. 'Text' → 'Map' α → 'Map' α``
+* ``MAP_DELETE : ∀ α. 'Text' → 'Map' α → 'Map' α``
 
-   Deletes a key and its value from the map. When the key is not a
-   member of the map, the original map is returned.
+  Deletes a key and its value from the map. When the key is not a
+  member of the map, the original map is returned.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
- * ``MAP_LIST : ∀ α. 'Map' α → 'List' ⟨ key: 'Text', value: α  ⟩``
+* ``MAP_LIST : ∀ α. 'Map' α → 'List' ⟨ key: 'Text', value: α  ⟩``
 
-   Converts to a list of key/value pairs. The output list is guaranteed to be
-   sorted according to the ordering of its keys.
+  Converts to a list of key/value pairs. The output list is guaranteed to be
+  sorted according to the ordering of its keys.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
- * ``MAP_SIZE : ∀ α. 'Map' α → 'Int64'``
+* ``MAP_SIZE : ∀ α. 'Map' α → 'Int64'``
 
-   Return the number of elements in the map.
+  Return the number of elements in the map.
 
-   [*Available since version 1.3*]
+  [*Available in versions >= 1.3*]
 
 Conversions functions
 ~~~~~~~~~~~~~~~~~~~~~
 
 * ``INT64_TO_NUMERIC : ∀ (α : nat) . 'Int64' → 'Numeric' α``
 
-  Returns a decimal representation of the integer.  The scale of the
-  output and the ouput is given by the type parameter `α`. Throws an
+  Returns a numeric representation of the integer.  The scale of the
+  output and the output is given by the type parameter `α`. Throws an
   error in case of overflow.
 
 * ``NUMERIC_TO_INT64 : ∀ (α : nat) . 'Numeric' α → 'Int64'``
 
-  Returns the integral part of the given decimal -- in other words,
-  rounds towards 0. The scale of the input and the ouput is given by
+  Returns the integral part of the given numeric -- in other words,
+  rounds towards 0. The scale of the input and the output is given by
   the type parameter `α`.  Throws an error in case of overflow.
 
 * ``TIMESTAMP_TO_UNIX_MICROSECONDS : 'Timestamp' → 'Int64'``
@@ -2622,12 +2618,12 @@ message::
   }
 
 One should use either the field ``self`` to refer the current package or
-one of ``interned_id`` [available since version 1.6] or ``package_id``
+one of ``interned_id`` [Available in versions >= 1.6] or ``package_id``
 to refer to an external package. During deserialization ``self``
 references are replaced by the actual digest of the package in which it
 appears.
 
-[*Available since version 1.6*]
+[*Available in versions >= 1.6*]
 
 ``Package.interned_package_ids`` is a list of package IDs.
 ``interned_id``, if used, must be a valid zero-based index into this
@@ -2693,7 +2689,7 @@ introduced to the serialization format since version 1.0
 Option type
 ...........
 
-[*Available since version 1.1*]
+[*Available in versions >= 1.1*]
 
 DAML-LF 1.1 is the first version that supports option type.
 
@@ -2704,7 +2700,7 @@ this data structure.
 Party ordering
 ..............
 
-[*Available since version 1.1*]
+[*Available in versions >= 1.1*]
 
 DAML-LF 1.1 is the first version that supports the built-in functions
 ``LESS_EQ_PARTY``, ``GREATER_EQ_PARTY``, ``LESS_PARTY``, and
@@ -2753,7 +2749,7 @@ The deserialization process will reject:
 Flexible controllers
 ....................
 
-[*Available since version 1.2*]
+[*Available in versions >= 1.2*]
 
 Version 1.2 changes what is in scope when the controllers of a choice are
 computed.
@@ -2801,7 +2797,7 @@ validation phases can be distinguished.
 SHA-256 Hashing
 ...............
 
-[*Available since version 1.2*]
+[*Available in versions >= 1.2*]
 
 DAML-LF 1.2 is the first version that supports the built-in functions
 ``SHA256_TEXT`` to hash string.
@@ -2812,7 +2808,7 @@ program using this functions.
 Contract Key
 ............
 
-[*Available since version 1.3*]
+[*Available in versions >= 1.3*]
 
 Since DAML-LF 1.3, a contract key can be associated to a contract at
 creation. Subsequently, the contract can be retrieved by the corresponding
@@ -2830,7 +2826,7 @@ the message ``DefTemplate`` .
 Map
 ...
 
-[*Available since version 1.3*]
+[*Available in versions >= 1.3*]
 
 The deserialization process will reject any DAML-LF 1.2 (or earlier)
 program using the builtin functions : ``MAP_EMPTY``, ``MAP_INSERT``,
@@ -2839,7 +2835,7 @@ program using the builtin functions : ``MAP_EMPTY``, ``MAP_INSERT``,
 Enum
 ....
 
-[*Available since version 1.6*]
+[*Available in versions >= 1.6*]
 
 The deserialization process will reject any DAML-LF 1.5 (or earlier)
 program using the field ``enum`` in ``DefDataType`` messages, the
@@ -2849,7 +2845,7 @@ in ``Expr`` messages.
 intern package IDs
 ..................
 
-[*Available since version 1.6*]
+[*Available in versions >= 1.6*]
 
 In ``PackageRef``, the alternative ``interned_id`` may be used in place
 of ``package_id``, in which case the package ID will be that at the
@@ -2859,7 +2855,7 @@ See `Package reference`_.
 Nat kind and Nat types
 ......................
 
-[*Available since version 1.dev*]
+[*Available in versions >= 1.dev*]
 
 The deserialization process will reject any DAML-LF 1.6 (or earlier)
 that uses ``nat`` field in ``Kind`` or ``Type`` messages.
@@ -2868,7 +2864,7 @@ Starting from DAML-LF 1.dev those messages are deserialized to ``nat``
 kind and ``nat`` type respectively. The field ``nat`` of ``Type``
 message must be a positive integer.
 
-Note that despite their is no concrete way to build Nat types in a
+Note that despite there being no concrete way to build Nat types in a
 DAML-LF 1.6 (or earlier) program, those are implicitly generated when
 reading as Numeric type and Numeric builtin as described in the next
 section.
@@ -2876,25 +2872,16 @@ section.
 Parametric scaled Decimals
 ..........................
 
-[*Available since version 1.dev*]
+[*Available in versions >= 1.dev*]
 
 DAML-LF 1.dev is the first version that supports parametric scaled
-decimals. Prior versions have decimal number with a fix scale of 10
-called Decimal. Backward compatibility with the current specification
-is achieved by
+decimals. Prior versions have decimal number with a fixed scale of 10
+called Decimal.  Backward compatibility with the current specification
+is achieved as follows:
 
-1. Renaming the fields and the emum values containing "``decimal``" in
-   the Protocol buffer definition with "``numeric``" instead,
-2. Unconditionally fixing the scale of Numeric literals to ``10`` when
-   reading DAML-LF 1.6 (or earlier),
-3. Automatically applying the Numeric types and the numeric
-   builtin functions to the Nat type ``10`` when reading DAML-LF
-   1.6 (or earlier).
+On the one hand, in case of DAML-LF 1.6 (or earlier) archive:
 
-   
-On the one hand, in case of DAML-LF 1.6 (or earlier) archive: 
-
-- The ``numeric`` fields of the ``PrimLit`` message must match the
+- The ``decimal`` fields of the ``PrimLit`` message must match the
   regexp::
 
     ``[+-]?\d{1,28}(.[0-9]\d{1-10})?``
@@ -2903,13 +2890,32 @@ On the one hand, in case of DAML-LF 1.6 (or earlier) archive:
   contains such field to a numeric literal of scale 10. The
   deserialization process will reject any non-compliant program.
 
-- ``PrimType`` message with a field ``numeric`` set are translated to
+- ``PrimType`` message with a field ``decimal`` set are translated to
   ``(Numeric 10)`` type when deserialized.
-  
-- Any ``BuiltinFunction`` message that corresponds to a numeric
-  builtin (all those builtins that contains ``NUMERIC`` within their
-  name) are silently applied to the ``nat`` type ``10`` when
-  deserialized to expression.
+
+- Decimal ``BuiltinFunction`` messages are translated as follows :
+
+  + ``ADD_DECIMAL`` message is translated to ``(ADD_NUMERIC @10)``
+  + ``SUB_DECIMAL`` message is translated to ``(SUB_NUMERIC @10)``
+  + ``MUL_DECIMAL`` message is translated to ``(MUL_NUMERIC @10)``
+  + ``DIV_DECIMAL`` message is translated to ``(DIV_NUMERIC @10)``
+  + ``ROUND_DECIMAL`` message is translated to ``(ROUND_NUMERIC @10)``
+  + ``LESS_EQ_DECIMAL`` message is translated to ``(LESS_EQ_NUMERIC @10)``
+  + ``GREATER_EQ_DECIMAL`` message is translated to ``(GREATER_EQ_NUMERIC @10)``
+  + ``LESS_DECIMAL`` message is translated to ``(LESS_NUMERIC @10)``
+  + ``GREATER_DECIMAL`` message is translated to ``(GREATER_NUMERIC @10)``
+  + ``EQUAL_DECIMAL`` message is translated to ``(EQUAL_NUMERIC @10)``
+  + ``TO_TEXT_DECIMAL`` message is translated to ``(TO_TEXT_NUMERIC @10)``
+  + ``FROM_TEXT_DECIMAL`` message is translated to ``(FROM_TEXT_NUMERIC @10)``  [*Available in versions >= 1.5*]
+  + ``INT64_TO_DECIMAL`` message is translated to ``(INT64_TO_NUMERIC @10)``
+  + ``DECIMAL_TO_INT64`` message is translated to ``(NUMERIC_TO_INT64 @10)``
+
+- Numeric types, literals and builtins cannot be referred directly.
+  In other words ``numeric`` fields in ``PrimLit`` and ``PrimType``
+  messages must remain unset and Numeric ``BuiltinFunction`` (those
+  containing ``NUMERIC`` in their name) are forbidden. The
+  deserialization process will reject any DAML-LF 1.6 (or earlier)
+  that does not comply those restrictions.
 
 On the other hand, starting from DAML-LF 1.dev:
 
@@ -2919,21 +2925,18 @@ On the other hand, starting from DAML-LF 1.dev:
   ``[-]?([1-9]\d*|0).\d*``
 
   with the addition constrains that it contains at most 38 digits
-  (ignoring possibly leading ``0``). The deserialization process will
-  use the number of digits on the right of the dot as scale when
-  converting the message to numeric literals. The deserialization
-  process will reject any non-compliant program.
+  (ignoring a possibly leading ``0``). The deserialization process
+  will use the number of digits on the right of the decimal dot
+  as scale when converting the message to numeric literals. The
+  deserialization process will reject any non-compliant program.
 
-- ``PrimType`` messages with a field ``numeric`` set and
-  ``BuiltinFunction`` messages that corresponds to a numeric builtin
-  are straightforwardly translated to the corresponding types or
-  expressions without implicit application.
+- Decimal types, literals and builtins cannot be referred directly.
+  In other words ``decimal`` fields in ``PrimLit`` and ``PrimType``
+  messages must remain unset and Decimal ``BuiltinFunction`` (those
+  containing ``DECIMAL`` in their name are forbidden). The
+  deserialization process will reject any DAML-LF 1.dev (or latter)
+  that does not comply those restrictions.
 
-  
-
-
-  
-  
 .. Local Variables:
 .. eval: (flyspell-mode 1)
 .. eval: (set-input-method "TeX")

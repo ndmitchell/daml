@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset;
@@ -47,7 +47,7 @@ public class RecordTest {
     @Test
     void deserializableFromRecord() {
         Int64 int_ = new Int64(int64Value);
-        Decimal decimal = new Decimal(decimalValue);
+        Numeric decimal = new Numeric(decimalValue);
         Text text = new Text(textValue);
         Bool bool = new Bool(boolValue);
         Party party = new Party(partyValue);

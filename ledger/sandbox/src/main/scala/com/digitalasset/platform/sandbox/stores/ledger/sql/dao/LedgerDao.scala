@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.platform.sandbox.stores.ledger.sql.dao
@@ -35,9 +35,21 @@ final case class Contract(
     witnesses: Set[Party],
     divulgences: Map[Party, TransactionId],
     coinst: ContractInst[VersionedValue[AbsoluteContractId]],
-    key: Option[KeyWithMaintainers[VersionedValue[AbsoluteContractId]]]) {
+    key: Option[KeyWithMaintainers[VersionedValue[AbsoluteContractId]]],
+    signatories: Set[Party],
+    observers: Set[Party]) {
   def toActiveContract: ActiveContract =
-    ActiveContract(let, transactionId, workflowId, coinst, witnesses, divulgences, key)
+    ActiveContract(
+      let,
+      transactionId,
+      workflowId,
+      coinst,
+      witnesses,
+      divulgences,
+      key,
+      signatories,
+      observers,
+      coinst.agreementText)
 }
 
 object Contract {
@@ -50,7 +62,9 @@ object Contract {
       ac.witnesses,
       ac.divulgences,
       ac.contract,
-      ac.key)
+      ac.key,
+      ac.signatories,
+      ac.observers)
 }
 
 /**
@@ -152,7 +166,8 @@ trait LedgerReadDao extends AutoCloseable {
     *
     * @param mat the Akka stream materializer to be used for the contract stream.
     */
-  def getActiveContractSnapshot()(implicit mat: Materializer): Future[LedgerSnapshot]
+  def getActiveContractSnapshot(untilExclusive: LedgerOffset)(
+      implicit mat: Materializer): Future[LedgerSnapshot]
 
   /** Returns a list of all known parties. */
   def getParties: Future[List[PartyDetails]]
@@ -216,7 +231,8 @@ trait LedgerWriteDao extends AutoCloseable {
     */
   def storeParty(
       party: Party,
-      displayName: Option[String]
+      displayName: Option[String],
+      externalOffset: Option[ExternalOffset]
   ): Future[PersistenceResponse]
 
   /**
@@ -231,7 +247,8 @@ trait LedgerWriteDao extends AutoCloseable {
     */
   def uploadLfPackages(
       uploadId: String,
-      packages: List[(Archive, PackageDetails)]
+      packages: List[(Archive, PackageDetails)],
+      externalOffset: Option[ExternalOffset]
   ): Future[Map[PersistenceResponse, Int]]
 
   /** Resets the platform into a state as it was never used before. Meant to be used solely for testing. */

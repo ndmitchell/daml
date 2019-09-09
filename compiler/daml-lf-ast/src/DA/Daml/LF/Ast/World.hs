@@ -1,10 +1,11 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE TemplateHaskell #-}
 
 module DA.Daml.LF.Ast.World(
     World,
+    getWorldSelf,
     initWorld,
     initWorldSelf,
     extendWorldSelf,
@@ -39,6 +40,9 @@ data World = World
   { _worldImported :: HMS.HashMap PackageId Package
   , _worldSelf :: Package
   }
+
+getWorldSelf :: World -> Package
+getWorldSelf = _worldSelf
 
 makeLensesFor [("_worldSelf","worldSelf")] ''World
 

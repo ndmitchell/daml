@@ -1,4 +1,4 @@
--- Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+-- Copyright (c) 2019 The DAML Authors. All rights reserved.
 -- SPDX-License-Identifier: Apache-2.0
 
 {-# LANGUAGE ConstraintKinds #-}
@@ -167,7 +167,8 @@ decodeChoice LF1.TemplateChoice{..} =
 decodeBuiltinFunction :: MonadDecode m => LF1.BuiltinFunction -> m BuiltinExpr
 decodeBuiltinFunction = pure . \case
   LF1.BuiltinFunctionEQUAL_INT64 -> BEEqual BTInt64
-  LF1.BuiltinFunctionEQUAL_NUMERIC -> BEEqual BTDecimal
+  LF1.BuiltinFunctionEQUAL_DECIMAL -> BEEqual BTDecimal
+  LF1.BuiltinFunctionEQUAL_NUMERIC -> BEEqualNumeric
   LF1.BuiltinFunctionEQUAL_TEXT -> BEEqual BTText
   LF1.BuiltinFunctionEQUAL_TIMESTAMP -> BEEqual BTTimestamp
   LF1.BuiltinFunctionEQUAL_DATE -> BEEqual BTDate
@@ -175,51 +176,62 @@ decodeBuiltinFunction = pure . \case
   LF1.BuiltinFunctionEQUAL_BOOL -> BEEqual BTBool
 
   LF1.BuiltinFunctionLEQ_INT64 -> BELessEq BTInt64
-  LF1.BuiltinFunctionLEQ_NUMERIC -> BELessEq BTDecimal
-  LF1.BuiltinFunctionLEQ_TEXT    -> BELessEq BTText
-  LF1.BuiltinFunctionLEQ_TIMESTAMP    -> BELessEq BTTimestamp
+  LF1.BuiltinFunctionLEQ_DECIMAL -> BELessEq BTDecimal
+  LF1.BuiltinFunctionLEQ_NUMERIC -> BELessEqNumeric
+  LF1.BuiltinFunctionLEQ_TEXT -> BELessEq BTText
+  LF1.BuiltinFunctionLEQ_TIMESTAMP -> BELessEq BTTimestamp
   LF1.BuiltinFunctionLEQ_DATE -> BELessEq BTDate
   LF1.BuiltinFunctionLEQ_PARTY -> BELessEq BTParty
 
   LF1.BuiltinFunctionLESS_INT64 -> BELess BTInt64
-  LF1.BuiltinFunctionLESS_NUMERIC -> BELess BTDecimal
-  LF1.BuiltinFunctionLESS_TEXT    -> BELess BTText
-  LF1.BuiltinFunctionLESS_TIMESTAMP    -> BELess BTTimestamp
+  LF1.BuiltinFunctionLESS_DECIMAL -> BELess BTDecimal
+  LF1.BuiltinFunctionLESS_NUMERIC -> BELessNumeric
+  LF1.BuiltinFunctionLESS_TEXT -> BELess BTText
+  LF1.BuiltinFunctionLESS_TIMESTAMP -> BELess BTTimestamp
   LF1.BuiltinFunctionLESS_DATE -> BELess BTDate
   LF1.BuiltinFunctionLESS_PARTY -> BELess BTParty
 
   LF1.BuiltinFunctionGEQ_INT64 -> BEGreaterEq BTInt64
-  LF1.BuiltinFunctionGEQ_NUMERIC -> BEGreaterEq BTDecimal
-  LF1.BuiltinFunctionGEQ_TEXT    -> BEGreaterEq BTText
-  LF1.BuiltinFunctionGEQ_TIMESTAMP    -> BEGreaterEq BTTimestamp
+  LF1.BuiltinFunctionGEQ_DECIMAL -> BEGreaterEq BTDecimal
+  LF1.BuiltinFunctionGEQ_NUMERIC -> BEGreaterEqNumeric
+  LF1.BuiltinFunctionGEQ_TEXT -> BEGreaterEq BTText
+  LF1.BuiltinFunctionGEQ_TIMESTAMP -> BEGreaterEq BTTimestamp
   LF1.BuiltinFunctionGEQ_DATE -> BEGreaterEq BTDate
   LF1.BuiltinFunctionGEQ_PARTY -> BEGreaterEq BTParty
 
   LF1.BuiltinFunctionGREATER_INT64 -> BEGreater BTInt64
-  LF1.BuiltinFunctionGREATER_NUMERIC -> BEGreater BTDecimal
-  LF1.BuiltinFunctionGREATER_TEXT    -> BEGreater BTText
-  LF1.BuiltinFunctionGREATER_TIMESTAMP    -> BEGreater BTTimestamp
+  LF1.BuiltinFunctionGREATER_DECIMAL -> BEGreater BTDecimal
+  LF1.BuiltinFunctionGREATER_NUMERIC -> BEGreaterNumeric
+  LF1.BuiltinFunctionGREATER_TEXT -> BEGreater BTText
+  LF1.BuiltinFunctionGREATER_TIMESTAMP -> BEGreater BTTimestamp
   LF1.BuiltinFunctionGREATER_DATE -> BEGreater BTDate
   LF1.BuiltinFunctionGREATER_PARTY -> BEGreater BTParty
 
   LF1.BuiltinFunctionTO_TEXT_INT64 -> BEToText BTInt64
-  LF1.BuiltinFunctionTO_TEXT_NUMERIC -> BEToText BTDecimal
-  LF1.BuiltinFunctionTO_TEXT_TEXT    -> BEToText BTText
-  LF1.BuiltinFunctionTO_TEXT_TIMESTAMP    -> BEToText BTTimestamp
-  LF1.BuiltinFunctionTO_TEXT_PARTY   -> BEToText BTParty
+  LF1.BuiltinFunctionTO_TEXT_DECIMAL -> BEToText BTDecimal
+  LF1.BuiltinFunctionTO_TEXT_NUMERIC -> BEToTextNumeric
+  LF1.BuiltinFunctionTO_TEXT_TEXT -> BEToText BTText
+  LF1.BuiltinFunctionTO_TEXT_TIMESTAMP -> BEToText BTTimestamp
+  LF1.BuiltinFunctionTO_TEXT_PARTY -> BEToText BTParty
   LF1.BuiltinFunctionTO_TEXT_DATE -> BEToText BTDate
   LF1.BuiltinFunctionTEXT_FROM_CODE_POINTS -> BETextFromCodePoints
   LF1.BuiltinFunctionFROM_TEXT_PARTY -> BEPartyFromText
   LF1.BuiltinFunctionFROM_TEXT_INT64 -> BEInt64FromText
-  LF1.BuiltinFunctionFROM_TEXT_NUMERIC -> BEDecimalFromText
+  LF1.BuiltinFunctionFROM_TEXT_DECIMAL -> BEDecimalFromText
+  LF1.BuiltinFunctionFROM_TEXT_NUMERIC -> BENumericFromText
   LF1.BuiltinFunctionTEXT_TO_CODE_POINTS -> BETextToCodePoints
   LF1.BuiltinFunctionTO_QUOTED_TEXT_PARTY -> BEPartyToQuotedText
 
-  LF1.BuiltinFunctionADD_NUMERIC   -> BEAddDecimal
-  LF1.BuiltinFunctionSUB_NUMERIC   -> BESubDecimal
-  LF1.BuiltinFunctionMUL_NUMERIC   -> BEMulDecimal
-  LF1.BuiltinFunctionDIV_NUMERIC   -> BEDivDecimal
-  LF1.BuiltinFunctionROUND_NUMERIC -> BERoundDecimal
+  LF1.BuiltinFunctionADD_DECIMAL   -> BEAddDecimal
+  LF1.BuiltinFunctionSUB_DECIMAL   -> BESubDecimal
+  LF1.BuiltinFunctionMUL_DECIMAL   -> BEMulDecimal
+  LF1.BuiltinFunctionDIV_DECIMAL   -> BEDivDecimal
+  LF1.BuiltinFunctionROUND_DECIMAL -> BERoundDecimal
+  LF1.BuiltinFunctionADD_NUMERIC   -> BEAddNumeric
+  LF1.BuiltinFunctionSUB_NUMERIC   -> BESubNumeric
+  LF1.BuiltinFunctionMUL_NUMERIC   -> BEMulNumeric
+  LF1.BuiltinFunctionDIV_NUMERIC   -> BEDivNumeric
+  LF1.BuiltinFunctionROUND_NUMERIC -> BERoundNumeric
 
   LF1.BuiltinFunctionADD_INT64 -> BEAddInt64
   LF1.BuiltinFunctionSUB_INT64 -> BESubInt64
@@ -250,8 +262,10 @@ decodeBuiltinFunction = pure . \case
   LF1.BuiltinFunctionTIMESTAMP_TO_UNIX_MICROSECONDS -> BETimestampToUnixMicroseconds
   LF1.BuiltinFunctionUNIX_MICROSECONDS_TO_TIMESTAMP -> BEUnixMicrosecondsToTimestamp
 
-  LF1.BuiltinFunctionINT64_TO_NUMERIC -> BEInt64ToDecimal
-  LF1.BuiltinFunctionNUMERIC_TO_INT64 -> BEDecimalToInt64
+  LF1.BuiltinFunctionINT64_TO_DECIMAL -> BEInt64ToDecimal
+  LF1.BuiltinFunctionDECIMAL_TO_INT64 -> BEDecimalToInt64
+  LF1.BuiltinFunctionINT64_TO_NUMERIC -> BEInt64ToNumeric
+  LF1.BuiltinFunctionNUMERIC_TO_INT64 -> BENumericToInt64
 
   LF1.BuiltinFunctionTRACE -> BETrace
   LF1.BuiltinFunctionEQUAL_CONTRACT_ID -> BEEqualContractId
@@ -477,9 +491,12 @@ decodeVarWithType LF1.VarWithType{..} =
 decodePrimLit :: MonadDecode m => LF1.PrimLit -> m BuiltinExpr
 decodePrimLit (LF1.PrimLit mbSum) = mayDecode "primLitSum" mbSum $ \case
   LF1.PrimLitSumInt64 sInt -> pure $ BEInt64 sInt
-  LF1.PrimLitSumNumeric sDec -> case readMaybe (TL.unpack sDec) of
+  LF1.PrimLitSumDecimal sDec -> case readMaybe (TL.unpack sDec) of
     Nothing -> throwError $ ParseError ("bad fixed while decoding Decimal: '" <> TL.unpack sDec <> "'")
     Just dec -> return (BEDecimal dec)
+  LF1.PrimLitSumNumeric sNum -> case readMaybe (TL.unpack sNum) of
+    Nothing -> throwError $ ParseError ("bad Numeric literal: '" <> TL.unpack sNum <> "'")
+    Just n -> return (BENumeric n)
   LF1.PrimLitSumTimestamp sTime -> pure $ BETimestamp sTime
   LF1.PrimLitSumText x           -> pure $ BEText $ TL.toStrict x
   LF1.PrimLitSumParty p          -> pure $ BEParty $ PartyLiteral $ TL.toStrict p
@@ -488,17 +505,16 @@ decodePrimLit (LF1.PrimLit mbSum) = mayDecode "primLitSum" mbSum $ \case
 decodeKind :: LF1.Kind -> Decode Kind
 decodeKind LF1.Kind{..} = mayDecode "kindSum" kindSum $ \case
   LF1.KindSumStar LF1.Unit -> pure KStar
+  LF1.KindSumNat LF1.Unit -> pure KNat
   LF1.KindSumArrow (LF1.Kind_Arrow params mbResult) -> do
     result <- mayDecode "kind_ArrowResult" mbResult decodeKind
     foldr KArrow result <$> traverse decodeKind (V.toList params)
-  LF1.KindSumNat LF1.Unit ->
-    -- FixMe https://github.com/digital-asset/daml/issues/2289
-    throwError $ ParseError "nat kind not supported"
 
 decodePrim :: LF1.PrimType -> Decode BuiltinType
 decodePrim = pure . \case
   LF1.PrimTypeINT64 -> BTInt64
-  LF1.PrimTypeNUMERIC -> BTDecimal
+  LF1.PrimTypeDECIMAL -> BTDecimal
+  LF1.PrimTypeNUMERIC -> BTNumeric
   LF1.PrimTypeTEXT    -> BTText
   LF1.PrimTypeTIMESTAMP -> BTTimestamp
   LF1.PrimTypePARTY   -> BTParty
@@ -517,6 +533,9 @@ decodeType :: LF1.Type -> DecodeImpl Type
 decodeType LF1.Type{..} = mayDecode "typeSum" typeSum $ \case
   LF1.TypeSumVar (LF1.Type_Var var args) ->
     decodeWithArgs args $ TVar <$> decodeName TypeVarName var
+  LF1.TypeSumNat n ->
+    pure $ TNat (fromIntegral n)
+    -- TODO (#2289): determine if some bounds check should be made here.
   LF1.TypeSumCon (LF1.Type_Con mbCon args) ->
     decodeWithArgs args $ TCon <$> mayDecode "type_ConTycon" mbCon decodeTypeConName
   LF1.TypeSumPrim (LF1.Type_Prim (Proto.Enumerated (Right prim)) args) -> do
@@ -532,9 +551,6 @@ decodeType LF1.Type{..} = mayDecode "typeSum" typeSum $ \case
     decodeImpl $ foldr TForall body <$> traverse decodeTypeVarWithKind (V.toList binders)
   LF1.TypeSumTuple (LF1.Type_Tuple flds) ->
     TTuple <$> mapM (decodeFieldWithType FieldName) (V.toList flds)
-  LF1.TypeSumNat _ ->
-    -- FixMe https://github.com/digital-asset/daml/issues/2289
-    throwError $ ParseError "nat type not supported"
   where
     decodeWithArgs :: V.Vector LF1.Type -> DecodeImpl Type -> DecodeImpl Type
     decodeWithArgs args fun = foldl TApp <$> fun <*> traverse decodeType args

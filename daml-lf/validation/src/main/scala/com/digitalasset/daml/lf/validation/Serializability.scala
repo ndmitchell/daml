@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.validation
@@ -57,6 +57,8 @@ private[validation] object Serializability {
       }
       case TVar(name) =>
         if (!vars(name)) unserializable(URFreeVar(name))
+      case TNat(_) =>
+        unserializable(URNat)
       case TTyCon(tycon) =>
         lookupDefinition(ctx, tycon) match {
           case DDataType(true, _, _) =>
@@ -64,6 +66,7 @@ private[validation] object Serializability {
           case _ =>
             unserializable(URDataType(tycon))
         }
+      case TNumeric(TNat(_)) =>
       case TList(tArg) =>
         checkType(tArg)
       case TOptional(tArg) =>
@@ -75,7 +78,9 @@ private[validation] object Serializability {
         checkType(targ)
       case TBuiltin(builtinType) =>
         builtinType match {
-          case BTInt64 | BTDecimal | BTText | BTTimestamp | BTDate | BTParty | BTBool | BTUnit =>
+          case BTInt64 | BTText | BTTimestamp | BTDate | BTParty | BTBool | BTUnit =>
+          case BTNumeric =>
+            unserializable(URNumeric)
           case BTList =>
             unserializable(URList)
           case BTOptional =>

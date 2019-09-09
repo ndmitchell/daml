@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset
@@ -29,9 +29,10 @@ import org.scalatest.Assertion
 import scala.language.implicitConversions
 import scala.collection.JavaConverters._
 
-object TestUtil extends BazelRunfiles {
+object TestUtil {
 
-  def testDalf = new File(rlocation("language-support/java/codegen/ledger-tests-model.dar"))
+  def testDalf =
+    new File(BazelRunfiles.rlocation("language-support/java/codegen/ledger-tests-model.dar"))
 
   val LedgerID = "ledger-test"
   def withClient(testCode: Channel => Assertion): Assertion = {

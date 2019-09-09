@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.engine
@@ -45,7 +45,7 @@ import com.digitalasset.daml.lf.speedy.{Command => SpeedyCommand}
   */
 final class Engine {
   private[this] val _compiledPackages = ConcurrentCompiledPackages()
-  private[this] val _commandTranslation = CommandPreprocessor(_compiledPackages)
+  private[this] val _commandTranslation = new CommandPreprocessor(_compiledPackages)
 
   /**
     * Executes commands `cmds` under the authority of `cmds.submitter` and returns one of the following:

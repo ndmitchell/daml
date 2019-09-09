@@ -1,19 +1,20 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 //
 // Protocol buffer messages used by the participant state key-value utilities
 // for implementing a DAML ledger backed by a key-value store.
 //
-// These messages must only be produced and consumed by the methods in
+// These messages should only be produced and consumed by the methods in
 // `KeyValueCommitting`, `KeyValueConsumption` and `KeyValueSubmission` objects.
-// You must not embed these messages in other protocol buffer messages.
+//
 
 syntax = "proto3";
 package com.daml.ledger.participant.state.kvutils;
 option java_package = "com.daml.ledger.participant.state.kvutils";
 option csharp_namespace = "Com.Daml.Ledger.Participant.State.KVUtils";
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "da/daml_lf.proto";
@@ -21,17 +22,45 @@ import "daml-lf/transaction/src/main/protobuf/transaction.proto";
 import "daml-lf/transaction/src/main/protobuf/com/digitalasset/daml/lf/value.proto";
 
 
+// Envelope with which we wrap all kvutils messages that are sent over the network
+// or persisted on disk. The envelope specifies the kvutils version that defines how
+// a message is decoded and processed. Optionally the message payload may be stored
+// compressed.
+message Envelope {
+  enum MessageKind {
+    SUBMISSION = 0;
+    LOG_ENTRY = 1;
+    STATE_VALUE = 2;
+  }
+
+  enum CompressionSchema {
+    NONE = 0;
+    GZIP = 1;
+  }
+
+  // Kvutils version number
+  int64 version = 1;
+
+  // Kind of message contained within.
+  MessageKind kind = 2;
+
+  // Compression schema, if any, used to compress the message.
+  CompressionSchema compression = 3;
+
+  // The enclosed, potentially compressed, message
+  bytes message = 4;
+}
+
 // A submission to the ledger: a payload and its inputs if any.
 // Produced by [[KeyValueSubmission]].
 // Transformed into `DamlLogEntry` when committed.
 message DamlSubmission {
-  repeated DamlLogEntryId input_log_entries = 1;
-  repeated DamlStateKey input_daml_state = 2;
+  repeated DamlStateKey input_daml_state = 1;
   oneof payload {
-    DamlTransactionEntry transaction_entry = 3;
-    DamlPackageUploadEntry package_upload_entry = 4;
-    DamlConfigurationEntry configuration_entry = 5;
-    DamlPartyAllocationEntry party_allocation_entry = 6;
+    DamlTransactionEntry transaction_entry = 2;
+    DamlPackageUploadEntry package_upload_entry = 3;
+    DamlConfigurationSubmission configuration_submission = 4;
+    DamlPartyAllocationEntry party_allocation_entry = 5;
   }
 }
 
@@ -52,23 +81,26 @@ message DamlLogEntry {
     // Can be converted into `Update.TransactionAccepted`.
     DamlTransactionEntry transaction_entry = 2;
 
-    // A rejected command.
-    DamlRejectionEntry rejection_entry = 3;
+    // A rejected transaction.
+    DamlTransactionRejectionEntry transaction_rejection_entry = 3;
 
     // A collection of DAML-LF archives uploaded together by a participant.
     DamlPackageUploadEntry package_upload_entry = 4;
 
-    // A rejection of package upload
+    // A rejection of package upload.
     DamlPackageUploadRejectionEntry package_upload_rejection_entry = 5;
 
-    // A DAML configuration change.
+    // A DAML ledger configuration change.
     DamlConfigurationEntry configuration_entry = 6;
 
+    // A rejected configuration change.
+    DamlConfigurationRejectionEntry configuration_rejection_entry = 7;
+
     // Allocation of a new DAML party and its assignment to a participant
-    DamlPartyAllocationEntry party_allocation_entry = 7;
+    DamlPartyAllocationEntry party_allocation_entry = 8;
 
     // A rejection of party allocation request
-    DamlPartyAllocationRejectionEntry party_allocation_rejection_entry = 8;
+    DamlPartyAllocationRejectionEntry party_allocation_rejection_entry = 9;
   }
 }
 
@@ -96,22 +128,30 @@ message DamlSubmitterInfo {
 // their source).
 message DamlTransactionEntry {
   // The original submitted transaction, with relative identifiers.
-  // For now we're deduplicating the data and storing the contract instances
-  // both in this transaction, and in "DamlState". Later on the transaction here
-  // will only record the node identifiers, and nodes themselves are stored under
-  // "DamlState".
   com.digitalasset.daml.lf.transaction.Transaction transaction = 1;
 
+  // The submitting party and metadata about the submitted command.
+  // The submitting party is authorized against the submitting participant
+  // by looking at the party allocation. The metadata is used to deduplicate
+  // command submissions.
   DamlSubmitterInfo submitter_info = 2;
 
-  // Transaction metadata.
+  // Workflow identifier is an opaque string specific to the
+  // submitting application that is visible over Ledger API. The workflow
+  // identifier has no predefined meaning and applications are free to use
+  // it as they see fit.
   string workflow_id = 3;
+
+  // The ledger effective time of the transaction. This timestamp is used
+  // during validation/reinterpretation of the transaction as the source of
+  // time. This timestamp is checked against the ledger configuration which defines
+  // the bounds for valid timestamps in relation to the ledger record time
+  // (the time at which the transaction is committed).
   google.protobuf.Timestamp ledger_effective_time = 4;
 }
 
-// DAML command rejection entry. A failed commit of a submission creates a
-// rejection log entry.
-message DamlRejectionEntry {
+// A transaction rejection entry.
+message DamlTransactionRejectionEntry {
   DamlSubmitterInfo submitter_info = 1;
 
   message Inconsistent {
@@ -158,7 +198,8 @@ message DamlRejectionEntry {
 // ones will be added to the KV storage. Deduplication has no impact on the
 // upload result.
 message DamlPackageUploadEntry {
-  // A unique string scoped to a particular participant.
+  // A unique string scoped to a particular participant for matching the
+  // request with the result.
   // Implementers are free to select adequate mechanism e.g. UUID or similar.
   string submission_id = 1;
 
@@ -190,32 +231,113 @@ message DamlPackageUploadRejectionEntry {
     string details = 1;
   }
 
-  // The participant was not authorized to submit the upload request.
+  // Participant not authorized to submit the request
   message ParticipantNotAuthorized {
     string details = 1;
   }
 
   oneof reason {
-
     InvalidPackage invalid_package = 3;
     ParticipantNotAuthorized participant_not_authorized = 4;
   }
 }
 
-message DamlConfigurationEntry {
-  DamlTimeModel time_model = 1;
+// Configuration change request to change the ledger configuration.
+message DamlConfigurationSubmission {
+  // A unique string scoped to a particular participant for matching the
+  // request with the result.
+  // Implementers are free to select adequate mechanism e.g. UUID or similar.
+  string submission_id = 1;
+
+  // The maximum record time after which the submission will be rejected.
+  // Allows submitter to control when the request times out and to retry.
+  google.protobuf.Timestamp maximum_record_time = 2;
+
+  // The new configuration that replaces the current configuration.
+  DamlConfiguration configuration = 3;
 }
+
+// A log entry describing a rejected configuration change.
+message DamlConfigurationRejectionEntry {
+  // A unique string scoped to a particular participant for matching the
+  // request with the result.
+  string submission_id = 1;
+
+  // The new proposed configuration that was rejected.
+  DamlConfiguration configuration = 2;
+
+  // A mismatch in the configuration generation, that is, the
+  // new configuration did not carry a generation that was one
+  // larger than previous generation.
+  message GenerationMismatch {
+    int64 expected_generation = 1;
+  }
+
+  // The provided configuration was invalid, e.g. the time model contained negative or
+  // out-of-bounds values.
+  message InvalidConfiguration {
+    string error = 1;
+  }
+
+  // The request timed out, e.g. record time exceeded maximum record time.
+  message TimedOut {
+    google.protobuf.Timestamp record_time = 1;
+    google.protobuf.Timestamp maximum_record_time = 2;
+  }
+
+  // Participant not authorized to submit the request
+  message ParticipantNotAuthorized {
+    string details = 1;
+  }
+
+  oneof reason {
+    ParticipantNotAuthorized participant_not_authorized = 3;
+    GenerationMismatch generation_mismatch = 4;
+    InvalidConfiguration invalid_configuration = 5;
+    TimedOut timed_out = 6;
+  }
+}
+
+message DamlConfigurationEntry {
+  // The submission from which this configuration originated.
+  string submission_id = 1;
+
+  // The ledger configuration.
+  DamlConfiguration configuration = 2;
+}
+
+message DamlConfiguration {
+  // The configuration generation. If submitting a configuration the new generation
+  // must be one larger than previous configuration. This safe-guards against
+  // configuration changes that are based upon stale data.
+  int64 generation = 1;
+
+  // The ledger time model, specifying the bounds for
+  // ledger effective time and maximum record time of transactions.
+  DamlTimeModel time_model = 2;
+
+  // The identity of the participant that is allowed to change
+  // the ledger configuration.
+  // If unset the configuration can be changed by anyone.
+  string authorized_participant_id = 3;
+
+  // If the "open world" flag is true, then party allocations are not
+  // explicitly required. That is, a submission from a party that is
+  // not allocated is allowed. This setting is useful when testing.
+  bool open_world = 4;
+}
+
 
 message DamlTimeModel {
   // The expected minimum latency of a transaction.
-  google.protobuf.Duration minTransactionLatency = 1;
+  google.protobuf.Duration min_transaction_latency = 1;
 
   // The maximum allowed clock skew between the ledger and clients.
-  google.protobuf.Duration maxClockSkew = 2;
+  google.protobuf.Duration max_clock_skew = 2;
 
   // The maximum allowed time to live for a transaction.
   // Must be greater than the derived minimum time to live.
-  google.protobuf.Duration maxTtl = 3;
+  google.protobuf.Duration max_ttl = 3;
 }
 
 // An allocation of party name and assignment of a party to a given
@@ -256,7 +378,7 @@ message DamlPartyAllocationRejectionEntry {
     string details = 1;
   }
 
-  // The participant was not authorized to submit the allocation request.
+  // Participant not authorized to submit the request
   message ParticipantNotAuthorized {
     string details = 1;
   }
@@ -279,6 +401,7 @@ message DamlStateKey {
     DamlCommandDedupKey command_dedup = 3;
     string party = 4;
     DamlContractKey contract_key = 5;
+    google.protobuf.Empty configuration = 6;
   }
 }
 
@@ -291,6 +414,7 @@ message DamlStateValue {
     DamlCommandDedupValue command_dedup = 3;
     DamlPartyAllocation party = 4;
     DamlContractKeyState contract_key_state = 5;
+    DamlConfiguration configuration = 6;
   }
 }
 
@@ -334,6 +458,9 @@ message DamlContractState {
 
   // The contract key set by the contract. Optional.
   DamlContractKey contract_key = 6;
+
+  // The contract instance
+  com.digitalasset.daml.lf.transaction.ContractInstance contract_instance = 7;
 }
 
 message DamlContractKey {

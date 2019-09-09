@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Digital Asset (Switzerland) GmbH and/or its affiliates. All rights reserved.
+// Copyright (c) 2019 The DAML Authors. All rights reserved.
 // SPDX-License-Identifier: Apache-2.0
 
 package com.digitalasset.daml.lf.testing.parser
@@ -13,7 +13,7 @@ private[parser] class TypeParser[P](parameters: ParserParameters[P]) {
 
   private def builtinTypes = Map[String, BuiltinType](
     "Int64" -> BTInt64,
-    "Decimal" -> BTDecimal,
+    "Numeric" -> BTNumeric,
     "Text" -> BTText,
     "Timestamp" -> BTTimestamp,
     "Party" -> BTParty,
@@ -41,6 +41,9 @@ private[parser] class TypeParser[P](parameters: ParserParameters[P]) {
     `(` ~> id ~ `:` ~ KindParser.kind <~ `)` ^^ { case name ~ _ ~ k => name -> k } |
       id ^^ (_ -> KStar)
 
+  private[parser] def tNat: Parser[TNat] =
+    accept("Number", { case Number(l) if l.toInt == l => TNat(l.toInt) })
+
   private lazy val tForall: Parser[Type] =
     `forall` ~>! rep1(typeBinder) ~ `.` ~ typ ^^ { case bs ~ _ ~ t => (bs :\ t)(TForall) }
 
@@ -52,6 +55,7 @@ private[parser] class TypeParser[P](parameters: ParserParameters[P]) {
 
   lazy val typ0: Parser[Type] =
     `(` ~> typ <~ `)` |
+      tNat |
       tForall |
       tTuple |
       (id ^? builtinTypes) ^^ TBuiltin |
